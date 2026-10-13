@@ -72,7 +72,9 @@ confirm sheets before destructive actions). Chart components may be redrawn; fee
   (`src/repo/progress.ts`). Ranks count earned Perfect Days only.
 - Shop purchase and inventory redeem are single transactions (`src/repo/rewards.ts`, `src/repo/inventory.ts`).
 - Reminder sync and permission handling (`src/state/game.ts`, `src/services/notifications.ts`).
-- Migrations are append-only (`src/db/migrations.ts`). Never edit an existing one.
+- Migrations are append-only (`src/db/migrations.ts`). Never edit an existing one. A new migration
+  that rewrites data (not just schema) should also add that step to `DATA_STEPS`, so restored
+  older backups get it too.
 - Android backup exclusion (`plugins/withPrivateAndroidBackup.js`, checked by `npm run check:backup`).
 
 ## Design references

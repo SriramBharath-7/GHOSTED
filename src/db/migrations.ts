@@ -1,5 +1,36 @@
 import type { Db } from './db';
 
+// Data-only steps of shipped migrations, kept as constants so restored
+// backups can replay them (see DATA_STEPS). Frozen like the migrations.
+
+// v2: seeded emoji become line-icon keys; user-picked emoji stay.
+const V2_ICON_KEYS = `
+  UPDATE habits SET icon = CASE icon
+    WHEN '🧬' THEN 'brain' WHEN '🏋️' THEN 'dumbbell' WHEN '⚡' THEN 'laptop'
+    WHEN '🔥' THEN 'chart' WHEN '🍟' THEN 'no-junk' WHEN '💧' THEN 'droplet'
+    WHEN '📖' THEN 'book' WHEN '🧘' THEN 'leaf' WHEN '🏃' THEN 'run' WHEN '💊' THEN 'pill'
+    WHEN '🛏️' THEN 'bed' WHEN '🥗' THEN 'salad' WHEN '🧠' THEN 'brain' WHEN '✍️' THEN 'pen'
+    WHEN '🚭' THEN 'no-smoking' WHEN '🎯' THEN 'target' ELSE icon END;
+
+  UPDATE rewards SET icon = CASE icon
+    WHEN '🍔' THEN 'burger' WHEN '🍕' THEN 'pizza' WHEN '🎬' THEN 'film' WHEN '🎮' THEN 'gamepad'
+    WHEN '👕' THEN 'shirt' WHEN '👟' THEN 'footprints' WHEN '☕' THEN 'coffee' WHEN '🍰' THEN 'cake'
+    WHEN '📚' THEN 'book' WHEN '🎧' THEN 'headphones' WHEN '✈️' THEN 'plane' WHEN '🛌' THEN 'bed'
+    WHEN '🎁' THEN 'gift' WHEN '💆' THEN 'sparkles' WHEN '🍺' THEN 'beer' WHEN '🛍️' THEN 'bag'
+    ELSE icon END;
+  UPDATE inventory SET icon = (SELECT r.icon FROM rewards r WHERE r.id = inventory.reward_id)
+    WHERE reward_id IS NOT NULL;
+  `;
+
+// v3: untouched seed accents move to the HUD palette.
+const V3_SEED_ACCENTS = `
+  UPDATE habits SET accent = '#4FD8FF' WHERE title = 'Regenesis Command' AND accent = '#3CCFB4';
+  UPDATE habits SET accent = '#2A8CFF' WHERE title = 'The Iron Monarch' AND accent = '#EF6351';
+  UPDATE habits SET accent = '#7FB4FF' WHERE title = 'The Kernel Strike' AND accent = '#A08BFF';
+  UPDATE habits SET accent = '#3DE0D0' WHERE title = 'The Phoenix 65' AND accent = '#FF8A3D';
+  UPDATE habits SET accent = '#EAF7FF' WHERE title = 'No Junk UPF' AND accent = '#8BD45A';
+  `;
+
 /**
  * Append-only list: index i upgrades schema version i → i + 1.
  * Never edit a shipped migration; add a new one.
@@ -146,34 +177,20 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE goals ADD COLUMN steps_total INTEGER CHECK (steps_total IS NULL OR steps_total > 0);
   ALTER TABLE goals ADD COLUMN steps_done INTEGER NOT NULL DEFAULT 0 CHECK (steps_done >= 0);
   ALTER TABLE goals ADD COLUMN start_date TEXT;
-
-  UPDATE habits SET icon = CASE icon
-    WHEN '🧬' THEN 'brain' WHEN '🏋️' THEN 'dumbbell' WHEN '⚡' THEN 'laptop'
-    WHEN '🔥' THEN 'chart' WHEN '🍟' THEN 'no-junk' WHEN '💧' THEN 'droplet'
-    WHEN '📖' THEN 'book' WHEN '🧘' THEN 'leaf' WHEN '🏃' THEN 'run' WHEN '💊' THEN 'pill'
-    WHEN '🛏️' THEN 'bed' WHEN '🥗' THEN 'salad' WHEN '🧠' THEN 'brain' WHEN '✍️' THEN 'pen'
-    WHEN '🚭' THEN 'no-smoking' WHEN '🎯' THEN 'target' ELSE icon END;
-
-  UPDATE rewards SET icon = CASE icon
-    WHEN '🍔' THEN 'burger' WHEN '🍕' THEN 'pizza' WHEN '🎬' THEN 'film' WHEN '🎮' THEN 'gamepad'
-    WHEN '👕' THEN 'shirt' WHEN '👟' THEN 'footprints' WHEN '☕' THEN 'coffee' WHEN '🍰' THEN 'cake'
-    WHEN '📚' THEN 'book' WHEN '🎧' THEN 'headphones' WHEN '✈️' THEN 'plane' WHEN '🛌' THEN 'bed'
-    WHEN '🎁' THEN 'gift' WHEN '💆' THEN 'sparkles' WHEN '🍺' THEN 'beer' WHEN '🛍️' THEN 'bag'
-    ELSE icon END;
-  UPDATE inventory SET icon = (SELECT r.icon FROM rewards r WHERE r.id = inventory.reward_id)
-    WHERE reward_id IS NOT NULL;
-  `,
+` + V2_ICON_KEYS,
   // Only untouched seed accents change. Custom colors and all progress survive.
-  `
-  UPDATE habits SET accent = '#4FD8FF' WHERE title = 'Regenesis Command' AND accent = '#3CCFB4';
-  UPDATE habits SET accent = '#2A8CFF' WHERE title = 'The Iron Monarch' AND accent = '#EF6351';
-  UPDATE habits SET accent = '#7FB4FF' WHERE title = 'The Kernel Strike' AND accent = '#A08BFF';
-  UPDATE habits SET accent = '#3DE0D0' WHERE title = 'The Phoenix 65' AND accent = '#FF8A3D';
-  UPDATE habits SET accent = '#EAF7FF' WHERE title = 'No Junk UPF' AND accent = '#8BD45A';
-  `,
+  V3_SEED_ACCENTS,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
+
+/**
+ * The data-only steps of the migrations above, by the schema version that
+ * added them. Restoring a backup made before a version replays its step, so
+ * old backups end up exactly as if their data had been migrated on a device.
+ * Each must be idempotent and leave user-chosen values alone.
+ */
+export const DATA_STEPS: Readonly<Record<number, string>> = { 2: V2_ICON_KEYS, 3: V3_SEED_ACCENTS };
 
 export async function migrate(db: Db): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version', []);

@@ -1,5 +1,5 @@
 import { type BindValue, type Db, transaction } from '@/db/db';
-import { SCHEMA_VERSION } from '@/db/migrations';
+import { DATA_STEPS, SCHEMA_VERSION } from '@/db/migrations';
 import type { DateKey } from '@/domain/dates';
 import { seedIfEmpty } from './habits';
 
@@ -96,6 +96,13 @@ export function importBackup(db: Db, file: BackupFile): Promise<number> {
           keys.map((key) => row[key]),
         );
         count++;
+      }
+    }
+    // An older backup gets the data fixes it predates (emoji → icon keys, seed
+    // accents), exactly as if its data had been migrated on a device.
+    if (file.kind === 'main') {
+      for (const [version, step] of Object.entries(DATA_STEPS)) {
+        if (Number(version) > file.schemaVersion) await db.execAsync(step);
       }
     }
     return count;
