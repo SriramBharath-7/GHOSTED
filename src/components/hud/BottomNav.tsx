@@ -8,6 +8,7 @@ import { useFx } from '@/state/fx';
 import { PressableScale } from '../ui/PressableScale';
 import { Text } from '../ui/Text';
 import { HudFrame } from './HudFrame';
+import { PixelArt, type PixelArtName } from '../pixel/PixelArt';
 
 export const NAV_TABS: readonly { name: string; label: string; icon: LucideIcon; href: string }[] = [
   { name: 'index', label: 'Player', icon: User, href: '/' },
@@ -19,6 +20,7 @@ export const NAV_TABS: readonly { name: string; label: string; icon: LucideIcon;
 
 const PAD = 6;
 const HEIGHT = 70;
+const TAB_ART: PixelArtName[] = ['home', 'calendar', 'swords', 'shop', 'backpack'];
 
 interface Props {
   activeIndex: number;
@@ -43,8 +45,8 @@ export function BottomNav({ activeIndex, onSelect, bottomInset, allowActivePress
   }, [acquiredId, landing, reduced]);
 
   useEffect(() => {
-    if (slot > 0) x.set(withTiming(PAD + activeIndex * slot, { duration: motion.base, easing: Easing.out(Easing.cubic) }));
-  }, [activeIndex, slot, x]);
+    if (slot > 0) x.set(withTiming(PAD + activeIndex * slot, { duration: reduced ? 0 : motion.base, easing: Easing.out(Easing.cubic) }));
+  }, [activeIndex, slot, x, reduced]);
 
   const indicator = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
   const landingStyle = useAnimatedStyle(() => ({ opacity: landing.get() }));
@@ -53,10 +55,10 @@ export function BottomNav({ activeIndex, onSelect, bottomInset, allowActivePress
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(bottomInset, space.sm) }]}>
       <View style={styles.bar} onLayout={(e) => setWidth(e.nativeEvent.layout.width)} accessibilityRole="tablist">
-        {width > 0 ? <HudFrame width={width} height={HEIGHT} chamfer={12} tone="cyan" fill={colors.panelStrong} /> : null}
+        {width > 0 ? <HudFrame width={width} height={HEIGHT} chamfer={6} tone="cyan" fill={colors.woodDark} /> : null}
         {slot > 0 ? (
           <Animated.View style={[styles.indicator, { width: slot }, indicator]} pointerEvents="none">
-            <HudFrame width={slot} height={HEIGHT - PAD * 2} chamfer={8} tone="active" />
+            <HudFrame width={slot} height={HEIGHT - PAD * 2} chamfer={4} tone="active" fill={colors.wood} />
           </Animated.View>
         ) : null}
         {slot > 0 ? (
@@ -66,7 +68,6 @@ export function BottomNav({ activeIndex, onSelect, bottomInset, allowActivePress
         ) : null}
         {NAV_TABS.map((tab, index) => {
           const active = index === activeIndex;
-          const Icon = tab.icon;
           return (
             <PressableScale
               key={tab.name}
@@ -82,10 +83,10 @@ export function BottomNav({ activeIndex, onSelect, bottomInset, allowActivePress
               style={styles.item}
             >
               <Animated.View style={tab.name === 'inventory' ? inventoryIcon : undefined}>
-                <Icon size={22} color={active ? colors.cyanBright : colors.textDim} strokeWidth={active ? 2 : 1.6} />
+                <PixelArt name={TAB_ART[index]} size={26} style={{ opacity: active ? 1 : 0.65 }} />
               </Animated.View>
               <Text
-                style={[styles.label, { color: active ? colors.cyanBright : colors.textDim }]}
+                style={[styles.label, { color: active ? colors.cream : '#C3B19A' }]}
                 glow={active}
                 numberOfLines={1}
                 adjustsFontSizeToFit
@@ -101,9 +102,9 @@ export function BottomNav({ activeIndex, onSelect, bottomInset, allowActivePress
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: space.md, paddingTop: space.sm, backgroundColor: colors.bg },
-  bar: { height: HEIGHT, flexDirection: 'row', paddingHorizontal: PAD, alignItems: 'center' },
-  indicator: { position: 'absolute', left: 0, top: PAD, height: HEIGHT - PAD * 2 },
+  wrap: { paddingHorizontal: space.md, paddingTop: space.sm, backgroundColor: colors.forest, width: '100%' },
+  bar: { height: HEIGHT, flexDirection: 'row', paddingHorizontal: PAD, alignItems: 'center', zIndex: 0 },
+  indicator: { position: 'absolute', left: 0, top: PAD, height: HEIGHT - PAD * 2, zIndex: 0 },
   item: { flex: 1, height: HEIGHT - PAD * 2, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  label: { fontFamily: fonts.displayMedium, fontSize: 8.5, letterSpacing: 0.6, textTransform: 'uppercase' },
+  label: { fontFamily: fonts.bodySemi, fontSize: 10, letterSpacing: 0.2, textTransform: 'uppercase' },
 });

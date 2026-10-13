@@ -53,7 +53,7 @@ export function Stepper({ label, value, onChange, min = 0, max, step = 5, color 
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  field: { flex: 1 },
+  field: { flex: 1, zIndex: 0 },
   input: {
     minHeight: 48,
     textAlign: 'center',

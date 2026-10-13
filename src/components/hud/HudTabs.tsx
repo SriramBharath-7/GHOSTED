@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { colors, fonts, motion } from '@/config/theme';
 import { haptics } from '@/services/haptics';
 import { PressableScale } from '../ui/PressableScale';
@@ -26,13 +26,14 @@ interface Props<T extends string> {
 /** Segmented HUD control; the lit frame slides between options. */
 export function HudTabs<T extends string>({ options, value, onChange, height = 52, dense }: Props<T>) {
   const [width, setWidth] = useState(0);
+  const reduced = useReducedMotion();
   const index = Math.max(0, options.findIndex((o) => o.value === value));
   const slot = width > 0 ? (width - 8) / options.length : 0;
   const x = useSharedValue(0);
 
   useEffect(() => {
-    if (slot > 0) x.set(withTiming(4 + index * slot, { duration: motion.base, easing: Easing.out(Easing.cubic) }));
-  }, [index, slot, x]);
+    if (slot > 0) x.set(withTiming(4 + index * slot, { duration: reduced ? 0 : motion.base, easing: Easing.out(Easing.cubic) }));
+  }, [index, slot, x, reduced]);
   const indicator = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
 
   return (
@@ -77,10 +78,10 @@ export function HudTabs<T extends string>({ options, value, onChange, height = 5
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },
-  indicator: { position: 'absolute', left: 0, top: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, zIndex: 0 },
+  indicator: { position: 'absolute', left: 0, top: 4, zIndex: 0 },
   item: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, alignSelf: 'stretch' },
   itemDense: { flexDirection: 'column', gap: 3 },
-  label: { fontFamily: fonts.displaySemi, fontSize: 12.5, letterSpacing: 2.5, textTransform: 'uppercase' },
-  labelDense: { fontSize: 8.5, letterSpacing: 0.4 },
+  label: { fontFamily: fonts.displaySemi, fontSize: 11, letterSpacing: 0.2, textTransform: 'uppercase' },
+  labelDense: { fontSize: 9, letterSpacing: 0 },
 });

@@ -7,10 +7,11 @@ import { useGame } from '@/state/game';
 import { completedSet, dueOn, habitNote } from '@/state/selectors';
 import { HudPanel } from '../hud/HudPanel';
 import { SectionTitle } from '../ui/Card';
+import { ProgressBar } from '../ui/ProgressBar';
 import { Text } from '../ui/Text';
 import { HabitRow } from './HabitRow';
 
-/** The Daily Discipline list for one day: header with progress, then habit rows. */
+/** The quest board for one day; all completions stay in the store. */
 export function DailyPanel({ date, notes = false }: { date: DateKey; notes?: boolean }) {
   const habits = useGame((s) => s.habits);
   const recent = useGame((s) => s.recent);
@@ -20,8 +21,14 @@ export function DailyPanel({ date, notes = false }: { date: DateKey; notes?: boo
   const done = due.filter((h) => completedSet(recent, h.id).has(date)).length;
 
   return (
-    <HudPanel double chamfer={14} style={styles.panel}>
-      <SectionTitle icon={CalendarDays} title="Daily Discipline" right={`${done} / ${due.length} complete`} />
+    <View style={styles.panel}>
+      <HudPanel double padding={space.md} style={styles.heading}>
+        <SectionTitle icon={CalendarDays} title={date === today ? "Today's quests" : 'Quest journal'} right={`${done} / ${due.length}`} />
+        {due.length > 0 ? <ProgressBar progress={done / due.length} height={7} color={colors.xp} /> : null}
+        <Text variant="caption">
+          {date !== today ? 'Past-day corrections keep your journal accurate.' : due.length > 0 && done === due.length ? 'Every quest complete. A day well earned.' : 'Small steps. Real progress.'}
+        </Text>
+      </HudPanel>
       {due.length === 0 ? (
         <Text variant="caption" style={styles.empty}>
           {habits.length === 0 ? 'No habits yet. Add the ones you already track.' : 'Rest day. Nothing is scheduled.'}
@@ -46,12 +53,13 @@ export function DailyPanel({ date, notes = false }: { date: DateKey; notes?: boo
           })}
         </View>
       )}
-    </HudPanel>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   panel: { gap: space.md },
+  heading: { gap: space.sm },
   rows: { gap: space.sm },
   empty: { color: colors.textMuted, paddingVertical: space.lg, textAlign: 'center' },
 });

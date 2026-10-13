@@ -18,13 +18,14 @@ export function TextField({ label, hint, error, style, multiline, onFocus, onBlu
   return (
     <View style={styles.wrap}>
       <Text variant="label">{label}</Text>
-      <View onLayout={onLayout}>
+      <View onLayout={onLayout} style={{ zIndex: 0 }}>
         {box ? (
           <HudFrame
             width={box.w}
             height={box.h}
             chamfer={6}
             tone={error ? 'danger' : focused ? 'active' : 'dim'}
+            fill={colors.panelStrong}
             corners={focused}
           />
         ) : null}

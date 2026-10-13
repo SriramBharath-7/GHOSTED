@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     color: colors.text,
-    letterSpacing: 4,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   heading: {
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 15,
     color: colors.textDim,
-    letterSpacing: 2,
+    letterSpacing: 0.2,
     textTransform: 'uppercase',
   },
   number: {

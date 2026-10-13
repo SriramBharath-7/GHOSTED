@@ -19,8 +19,8 @@ export function CoinBalance({ value, style }: { value: number; style?: StyleProp
   }, [reduced, value]);
   return (
     <View style={styles.balance}>
-      <AnimatedNumber value={value} variant="hero" glow="strong" style={style} color={value < 0 ? colors.danger : colors.text} />
-      <FloatUp nonce={spent.nonce} text={`−${spent.amount} GC`} duration={650} offset={8} />
+      <AnimatedNumber value={value} variant="hero" style={style} color={value < 0 ? colors.danger : colors.coin} />
+      <FloatUp nonce={spent.nonce} text={`−${spent.amount} GC`} color={colors.coin} duration={650} offset={8} />
     </View>
   );
 }

@@ -60,13 +60,13 @@ export function MonthBars({ bars, height = 170 }: { bars: MonthBar[]; height?: n
         <Svg width={width} height={height}>
           <Defs>
             <LinearGradient id="barFill" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={colors.cyanBright} stopOpacity={0.95} />
-              <Stop offset="1" stopColor={colors.cyan} stopOpacity={0.55} />
+              <Stop offset="0" stopColor={colors.success} stopOpacity={0.75} />
+              <Stop offset="1" stopColor={colors.success} />
             </LinearGradient>
           </Defs>
           {ticks.map((t) => (
             <G key={t}>
-              <Line x1={LEFT} x2={width} y1={base - (t / top) * innerH} y2={base - (t / top) * innerH} stroke={colors.cyan} strokeOpacity={t === 0 ? 0.35 : 0.08} />
+              <Line x1={LEFT} x2={width} y1={base - (t / top) * innerH} y2={base - (t / top) * innerH} stroke={colors.lineStrong} strokeDasharray={t === 0 ? undefined : '3 3'} />
               <SvgText x={LEFT - 6} y={base - (t / top) * innerH + 4} fill={colors.textMuted} fontSize={10} fontFamily={fonts.bodyMedium} textAnchor="end">
                 {String(t)}
               </SvgText>

@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { IconBox } from '@/components/hud/IconBox';
+import { HudPanel } from '@/components/hud/HudPanel';
 import { IconPicker } from '@/components/hud/IconPicker';
 import { HABIT_ICONS } from '@/components/hud/icons';
 import { Card, SectionTitle } from '@/components/ui/Card';
@@ -135,11 +136,13 @@ function HabitForm({ id, existing }: { id: number | null; existing: Habit | null
 
   return (
     <Screen header={<Header back eyebrow={id ? 'Edit habit' : 'New habit'} title={form.title || 'Untitled'} />}>
-      <View style={styles.preview}>
-        <View style={styles.previewIcon}>
-          <IconBox icon={form.icon} size={84} tone="active" color={colors.cyanBright} />
+      <HudPanel style={styles.preview}>
+        <IconBox icon={form.icon} size={64} tone="active" color={colors.cyanBright} />
+        <View style={styles.previewCopy}>
+          <Text variant="heading">Shape your next quest</Text>
+          <Text variant="caption">One real-world action, repeated with purpose.</Text>
         </View>
-      </View>
+      </HudPanel>
 
       <TextField
         label="Title"
@@ -185,7 +188,7 @@ function HabitForm({ id, existing }: { id: number | null; existing: Habit | null
               accessibilityState={{ checked: on }}
               accessibilityLabel={WEEKDAYS_SHORT[day]}
             >
-              <Text variant="label" color={on ? colors.text : colors.textMuted}>
+              <Text variant="label" color={on ? colors.cream : colors.textMuted} style={styles.dayLabel}>
                 {WEEKDAYS_SHORT[day]}
               </Text>
             </PressableScale>
@@ -275,24 +278,25 @@ function HabitForm({ id, existing }: { id: number | null; existing: Habit | null
 }
 
 const styles = StyleSheet.create({
-  preview: { alignItems: 'center', paddingVertical: space.sm },
-  previewIcon: { alignItems: 'center' },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  previewCopy: { flex: 1, gap: space.xs },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  swatch: { width: 36, height: 36, borderWidth: 2, borderColor: 'transparent', transform: [{ rotate: '45deg' }] },
-  swatchActive: { borderColor: colors.text },
-  days: { flexDirection: 'row', gap: 6 },
+  swatch: { width: 48, height: 48, borderWidth: 3, borderColor: colors.cream },
+  swatchActive: { borderColor: colors.wood, borderBottomWidth: 7 },
+  days: { flexDirection: 'row', gap: 4 },
   day: {
     flex: 1,
-    minHeight: 46,
+    minHeight: 48,
     borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
+    borderWidth: 2,
+    borderColor: colors.lineStrong,
   },
   row: { flexDirection: 'row', gap: space.md },
-  dayOn: { backgroundColor: 'rgba(79, 216, 255, 0.16)', borderColor: colors.cyan },
+  dayOn: { backgroundColor: colors.success, borderColor: colors.forest, borderBottomWidth: 4 },
+  dayLabel: { fontSize: 9, letterSpacing: 0 },
   stack: { gap: space.md },
   card: { gap: space.md, paddingVertical: space.sm },
   danger: { gap: space.sm, marginTop: space.lg },

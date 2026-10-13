@@ -9,6 +9,7 @@ import { useGame } from '@/state/game';
 import { completedSet, dueOn, remindersActive } from '@/state/selectors';
 import { Sheet } from '../ui/Sheet';
 import { Text } from '../ui/Text';
+import { PixelArt } from '../pixel/PixelArt';
 import { GhostAvatar } from './GhostAvatar';
 import { HudPressable } from './HudPanel';
 import { LineIcon } from './icons';
@@ -25,10 +26,7 @@ interface Props {
 
 /** GHOSTED wordmark with the System controls. Top of every main screen. */
 export function AppHeader({ ghost, back, controls = true, right }: Props) {
-  const { width } = useWindowDimensions();
-  // Size the wordmark to the room left beside the controls (no reliance on auto-shrink).
-  const room = Math.min(width, 520) - space.lg * 2 - (back ? 56 : 0) - (ghost ? 68 : 0) - (controls ? 112 : 0) - (right ? 56 : 0);
-  const markSize = Math.max(18, Math.min(34, room / 6.4));
+  const compact = useWindowDimensions().width < 360;
   const habits = useGame((s) => s.habits);
   const recent = useGame((s) => s.recent);
   const today = useGame((s) => s.today);
@@ -38,20 +36,19 @@ export function AppHeader({ ghost, back, controls = true, right }: Props) {
   const pending = due.filter((h) => !completedSet(recent, h.id).has(today));
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, compact && styles.compactRow]}>
       {back ? <HeaderButton icon={ChevronLeft} label="Back" onPress={() => router.back()} /> : null}
+      {!back || ghost ? <GhostAvatar width={32} height={36} variant="companion" /> : null}
       <View style={styles.brand} accessibilityRole="header">
         <View style={styles.wordRow}>
-          <Text style={[styles.wordmark, { fontSize: markSize, lineHeight: markSize * 1.18 }]} numberOfLines={1} glow="strong">
+          <Text style={[styles.wordmark, compact && styles.compactWordmark]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
             GHOSTED
           </Text>
-          <Text style={styles.tm}>™</Text>
         </View>
-        <Text style={[styles.tagline, { fontSize: Math.min(11, markSize * 0.33), letterSpacing: Math.min(4, markSize * 0.085) }]} numberOfLines={1}>
-          Discipline creates freedom
+        <Text style={styles.tagline} numberOfLines={1}>
+          A better you. Every day.
         </Text>
       </View>
-      {ghost ? <GhostAvatar width={60} height={64} variant="thumb" /> : null}
       {right}
       {controls ? (
         <>
@@ -64,7 +61,7 @@ export function AppHeader({ ghost, back, controls = true, right }: Props) {
       ) : null}
 
       <Sheet visible={open} onClose={() => setOpen(false)}>
-        <Text variant="title">System · Today</Text>
+        <Text variant="title">Today’s quest log</Text>
         <Text variant="caption">
           {pending.length === 0
             ? due.length
@@ -105,13 +102,14 @@ function HeaderButton({ icon: Icon, label, onPress }: { icon: LucideIcon; label:
       accessibilityRole="button"
       accessibilityLabel={label}
       tone="cyan"
+      fill={colors.wood}
       chamfer={4}
       padding={0}
       scaleTo={0.92}
       feedback
       style={styles.button}
     >
-      <Icon size={22} color={colors.cyanBright} strokeWidth={1.7} />
+      {Icon === Bell ? <PixelArt name="bell" size={25} /> : Icon === Settings ? <PixelArt name="settings" size={25} /> : <Icon size={22} color={colors.cream} strokeWidth={2.5} />}
     </HudPressable>
   );
 }
@@ -125,18 +123,19 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     paddingBottom: space.md,
   },
-  brand: { flex: 1, gap: 2 },
+  brand: { flex: 1, gap: 2, minWidth: 0 },
+  compactRow: { paddingHorizontal: space.md, gap: 6 },
+  compactWordmark: { fontSize: 20, lineHeight: 26 },
   wordRow: { flexDirection: 'row', alignItems: 'flex-start' },
   wordmark: {
     fontFamily: fonts.wordmark,
-    fontSize: 34,
-    lineHeight: 40,
-    letterSpacing: 1.5,
-    color: colors.cyanBright,
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: 0,
+    color: colors.cream,
     flexShrink: 1,
   },
-  tm: { fontFamily: fonts.bodySemi, fontSize: 9, color: colors.textDim, marginLeft: 2, marginTop: 4 },
-  tagline: { fontFamily: fonts.body, fontSize: 11, letterSpacing: 4, color: colors.textDim },
+  tagline: { fontFamily: fonts.bodyMedium, fontSize: 10, letterSpacing: 0.2, color: '#D7DFC1' },
   button: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' },
   dot: {
     position: 'absolute',
@@ -144,8 +143,9 @@ const styles = StyleSheet.create({
     right: 9,
     width: 7,
     height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.cyan,
+    borderWidth: 1,
+    borderColor: colors.woodDark,
+    backgroundColor: colors.gold,
   },
   list: { gap: space.xs },
   item: {

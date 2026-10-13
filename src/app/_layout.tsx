@@ -3,10 +3,6 @@ import { Exo2_500Medium } from '@expo-google-fonts/exo-2/500Medium';
 import { Exo2_600SemiBold } from '@expo-google-fonts/exo-2/600SemiBold';
 import { Exo2_700Bold } from '@expo-google-fonts/exo-2/700Bold';
 import { Exo2_800ExtraBold } from '@expo-google-fonts/exo-2/800ExtraBold';
-import { Orbitron_500Medium } from '@expo-google-fonts/orbitron/500Medium';
-import { Orbitron_600SemiBold } from '@expo-google-fonts/orbitron/600SemiBold';
-import { Orbitron_700Bold } from '@expo-google-fonts/orbitron/700Bold';
-import { Orbitron_900Black } from '@expo-google-fonts/orbitron/900Black';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -34,10 +30,8 @@ export default function RootLayout() {
     Exo2_600SemiBold,
     Exo2_700Bold,
     Exo2_800ExtraBold,
-    Orbitron_500Medium,
-    Orbitron_600SemiBold,
-    Orbitron_700Bold,
-    Orbitron_900Black,
+    PixelHeading: require('../../assets/fonts/Silkscreen-Regular.ttf'),
+    PixelTitle: require('../../assets/fonts/Silkscreen-Bold.ttf'),
   });
   const ready = useGame((s) => s.ready);
   const [error, setError] = useState<string | null>(null);

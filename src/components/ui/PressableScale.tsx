@@ -1,5 +1,5 @@
 import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { haptics } from '@/services/haptics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -22,12 +22,18 @@ export function PressableScale({
   ...rest
 }: Props) {
   const scale = useSharedValue(1);
+  const reduced = useReducedMotion();
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
   return (
     <AnimatedPressable
+      aria-checked={rest.accessibilityState?.checked}
+      aria-selected={rest.accessibilityState?.selected}
+      aria-expanded={rest.accessibilityState?.expanded}
+      aria-busy={rest.accessibilityState?.busy}
+      aria-disabled={rest.disabled || rest.accessibilityState?.disabled}
       {...rest}
       onPressIn={(e) => {
-        scale.set(withTiming(scaleTo, { duration: 90 }));
+        scale.set(withTiming(reduced ? 1 : scaleTo, { duration: 80 }));
         if (feedback) haptics.tap();
         onPressIn?.(e);
       }}

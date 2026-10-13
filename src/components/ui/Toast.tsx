@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
-import { StyleSheet } from 'react-native';
-import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
+import { StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown, FadeOutDown, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { create } from 'zustand';
 import { colors, space } from '@/config/theme';
 import { HudFrame } from '../hud/HudFrame';
 import { useBox } from '../hud/HudPanel';
+import { PixelArt } from '../pixel/PixelArt';
 import { Text } from './Text';
 
 interface ToastState {
@@ -30,6 +31,7 @@ export function ToastHost() {
   const clear = useToastStore((s) => s.clear);
   const insets = useSafeAreaInsets();
   const { box, onLayout } = useBox();
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     if (!message) return;
@@ -41,17 +43,20 @@ export function ToastHost() {
   return (
     <Animated.View
       key={message.id}
-      entering={FadeInDown.duration(180)}
-      exiting={FadeOutDown.duration(180)}
+      entering={reduced ? undefined : FadeInDown.duration(180)}
+      exiting={reduced ? undefined : FadeOutDown.duration(180)}
       pointerEvents="none"
       onLayout={onLayout}
       style={[styles.toast, { bottom: insets.bottom + 104 }]}
       accessibilityLiveRegion="polite"
     >
       {box ? (
-        <HudFrame width={box.w} height={box.h} chamfer={8} tone={message.tone === 'error' ? 'danger' : 'active'} fill={colors.panelStrong} />
+        <HudFrame width={box.w} height={box.h} chamfer={8} tone="cyan" fill={colors.panel} />
       ) : null}
-      <Text variant="bodyStrong" align="center" color={message.tone === 'error' ? colors.danger : colors.text}>
+      {message.tone === 'error' ? (
+        <View style={styles.notice}><Text variant="bodyStrong" color={colors.cream}>!</Text></View>
+      ) : <PixelArt name="ghost" size={32} />}
+      <Text variant="bodyStrong" style={styles.message} color={message.tone === 'error' ? colors.danger : colors.text}>
         {message.text}
       </Text>
     </Animated.View>
@@ -60,10 +65,16 @@ export function ToastHost() {
 
 const styles = StyleSheet.create({
   toast: {
+    zIndex: 0,
     position: 'absolute',
     left: space.xl,
     right: space.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
     paddingVertical: space.md,
     paddingHorizontal: space.lg,
   },
+  message: { flex: 1 },
+  notice: { width: 28, height: 28, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.wood },
 });

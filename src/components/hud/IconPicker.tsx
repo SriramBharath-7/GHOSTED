@@ -31,7 +31,7 @@ export function IconPicker({
             accessibilityLabel={`Icon ${icon}`}
             style={styles.cell}
           >
-            <LineIcon name={icon} size={22} color={active ? colors.cyanBright : colors.textDim} />
+            <LineIcon name={icon} size={30} color={active ? colors.cyanBright : colors.textDim} />
           </HudPressable>
         );
       })}

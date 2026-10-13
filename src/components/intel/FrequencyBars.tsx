@@ -15,24 +15,22 @@ export function FrequencyBars({ data }: { data: WeekdayFrequency[] }) {
   }, [grow, reduced]);
   const best = Math.max(...data.map((d) => d.rate ?? 0));
   return (
-    <View style={styles.row}>
+    <View style={styles.list}>
       {data.map((d) => {
         const top = d.rate !== null && d.rate === best && best > 0;
         return (
           <View
             key={d.weekday}
-            style={styles.col}
+            style={styles.row}
             accessible
             accessibilityLabel={`${WEEKDAYS_SHORT[d.weekday]}: ${d.rate === null ? 'no data' : `${Math.round(d.rate * 100)} percent, ${d.done} of ${d.scheduled}`}`}
           >
-            <Text style={[styles.pct, { color: top ? colors.cyanBright : colors.textDim }]} glow={top}>
-              {d.rate === null ? '—' : `${Math.round(d.rate * 100)}`}
-            </Text>
+            <Text variant="bodyStrong" style={styles.day}>{WEEKDAYS_SHORT[d.weekday]}</Text>
             <View style={styles.track}>
               <FrequencyFill rate={d.rate ?? 0} grow={grow} top={top} />
             </View>
-            <Text variant="label" style={styles.day}>
-              {WEEKDAYS_SHORT[d.weekday]}
+            <Text style={[styles.pct, { color: top ? colors.success : colors.textDim }]}>
+              {d.rate === null ? '—' : `${Math.round(d.rate * 100)}%`}
             </Text>
           </View>
         );
@@ -43,24 +41,23 @@ export function FrequencyBars({ data }: { data: WeekdayFrequency[] }) {
 
 function FrequencyFill({ rate, grow, top }: { rate: number; grow: SharedValue<number>; top: boolean }) {
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: (1 - grow.get()) * rate * 54 }, { scaleY: grow.get() }],
+    transform: [{ scaleX: grow.get() }],
   }));
-  return <Animated.View style={[styles.fill, { height: `${rate * 100}%` }, top && styles.fillTop, style]} />;
+  return <Animated.View style={[styles.fill, { width: `${rate * 100}%` }, top && styles.fillTop, style]} />;
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: space.sm, alignItems: 'flex-end' },
-  col: { flex: 1, alignItems: 'center', gap: 6 },
-  pct: { fontFamily: fonts.number, fontSize: 13 },
+  list: { gap: space.md },
+  row: { flexDirection: 'row', gap: space.md, alignItems: 'center', minHeight: 28 },
+  pct: { width: 44, fontFamily: fonts.number, fontSize: 15, textAlign: 'right' },
   track: {
-    width: '64%',
-    height: 110,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: 'rgba(3, 10, 20, 0.6)',
-    justifyContent: 'flex-end',
+    flex: 1,
+    height: 18,
+    borderWidth: 2,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.bg,
   },
-  fill: { width: '100%', backgroundColor: 'rgba(79, 216, 255, 0.55)' },
-  fillTop: { backgroundColor: colors.cyan },
-  day: { fontSize: 9.5, letterSpacing: 1 },
+  fill: { height: '100%', backgroundColor: colors.success, opacity: 0.72, transformOrigin: 'left center' },
+  fillTop: { backgroundColor: colors.success, opacity: 1 },
+  day: { width: 34, fontSize: 13 },
 });

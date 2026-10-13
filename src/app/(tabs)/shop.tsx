@@ -1,13 +1,13 @@
 import { router } from 'expo-router';
-import { Check, Plus, ShoppingCart, SlidersHorizontal, Store } from 'lucide-react-native';
+import { Check, Plus, SlidersHorizontal, Store } from 'lucide-react-native';
 import { useRef, useState } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { AppHeader } from '@/components/hud/AppHeader';
-import { GhostAvatar } from '@/components/hud/GhostAvatar';
 import { HudPanel, HudPressable } from '@/components/hud/HudPanel';
 import { CoinRing } from '@/components/hud/StatBlock';
 import { SystemButton } from '@/components/hud/SystemButton';
 import { LineIcon } from '@/components/hud/icons';
+import { WorldScene } from '@/components/pixel/WorldScene';
 import { RewardCard } from '@/components/shop/RewardCard';
 import { CoinBalance } from '@/components/shop/CoinBalance';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -15,7 +15,7 @@ import { ReorderRow } from '@/components/ui/ReorderRow';
 import { Reveal, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { toast } from '@/components/ui/Toast';
-import { colors, fonts, space } from '@/config/theme';
+import { colors, space } from '@/config/theme';
 import { getDb } from '@/db/database';
 import { moved, saveOrder } from '@/repo/order';
 import { type Reward, listRewards, purchaseReward } from '@/repo/rewards';
@@ -33,7 +33,6 @@ const SUGGESTIONS = [
 ];
 
 export default function ShopScreen() {
-  const { width } = useWindowDimensions();
   const rewards = useLiveQuery(listRewards);
   const coins = useGame((s) => s.player.coins);
   const commit = useGame((s) => s.commit);
@@ -41,7 +40,6 @@ export default function ShopScreen() {
   const [managing, setManaging] = useState(false);
   const [buying, setBuying] = useState<number | null>(null);
   const purchasePending = useRef(false);
-  const avatar = Math.round((Math.min(width, 520) - space.lg * 2) * 0.26);
 
   const buy = async (reward: Reward) => {
     if (purchasePending.current) return false;
@@ -82,34 +80,16 @@ export default function ShopScreen() {
   return (
     <Screen header={<AppHeader />}>
       <Reveal index={0}>
-        <HudPanel double chamfer={16} padding={space.md} style={styles.wallet}>
-          <GhostAvatar width={avatar} height={Math.round(avatar * 1.1)} variant="thumb" />
-          <View style={styles.walletText} accessible accessibilityLabel={`${coins} Ghost Coins`}>
-            <Text variant="label" style={styles.walletLabel}>
-              Ghost Coins
-            </Text>
-            <View style={styles.balance}>
-              <CoinRing size={44} />
-              <CoinBalance value={coins} style={styles.balanceNumber} />
-            </View>
-            <Text variant="label" style={styles.motto} numberOfLines={1} adjustsFontSizeToFit>
-              Discipline pays dividends
-            </Text>
-          </View>
-        </HudPanel>
+        <WorldScene variant="shop" title="The reward shop" subtitle="Small rewards. A brighter you." height={164} />
       </Reveal>
-
       <Reveal index={1}>
-        <HudPanel tone="dim" chamfer={10} padding={space.md} style={styles.banner}>
-          <ShoppingCart size={26} color={colors.cyan} strokeWidth={1.6} />
-          <View style={styles.flex}>
-            <Text variant="title" glow style={styles.bannerTitle} numberOfLines={1}>
-              Rewards Shop
-            </Text>
-            <Text variant="label" style={styles.bannerSide} numberOfLines={1}>
-              Earn discipline. Spend freedom.
-            </Text>
+        <HudPanel double padding={space.md} style={styles.wallet}>
+          <CoinRing size={40} />
+          <View style={styles.walletText}>
+            <Text variant="label">Ghost Coins</Text>
+            <Text variant="caption">Earned in real life. Yours to spend.</Text>
           </View>
+          <View accessible accessibilityLabel={`${coins} Ghost Coins`}><CoinBalance value={coins} style={styles.balanceNumber} /></View>
         </HudPanel>
       </Reveal>
 
@@ -118,8 +98,8 @@ export default function ShopScreen() {
           <View style={styles.gap}>
             <EmptyState
               icon={Store}
-              title="Your shop is empty"
-              message="Define the rewards you allow yourself. You pay for them with the coins your habits earn."
+              title="Stock your little shop"
+              message="Pick something worth working toward. Buy it with the Ghost Coins you earn from your habits."
               action={{ label: 'Create a reward', onPress: () => router.push('/reward-editor') }}
             />
             <Text variant="label">Quick start</Text>
@@ -213,15 +193,9 @@ export default function ShopScreen() {
 }
 
 const styles = StyleSheet.create({
-  wallet: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
+  wallet: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   walletText: { flex: 1, gap: space.xs },
-  walletLabel: { fontSize: 12, letterSpacing: 4 },
-  balance: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  balanceNumber: { fontSize: 50, lineHeight: 58, flexShrink: 1 },
-  motto: { fontSize: 9.5, letterSpacing: 2.6, color: colors.textDim },
-  banner: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  bannerTitle: { fontSize: 16, letterSpacing: 4 },
-  bannerSide: { fontFamily: fonts.displayMedium, fontSize: 9, letterSpacing: 1.6, marginTop: 2 },
+  balanceNumber: { fontSize: 30, lineHeight: 38, flexShrink: 1, color: colors.coin },
   gap: { gap: space.md },
   pair: { flexDirection: 'row', gap: space.md },
   flex: { flex: 1 },

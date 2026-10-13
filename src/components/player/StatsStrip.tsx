@@ -1,59 +1,44 @@
-import { ChartNoAxesColumnIncreasing, ChevronsUp, Crosshair, Flame } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
-import { colors, space } from '@/config/theme';
-import { levelInfo } from '@/domain/progression';
+import { colors, fonts, space } from '@/config/theme';
 import { useGame } from '@/state/game';
 import { dayProgress } from '@/state/selectors';
 import { HudPanel } from '../hud/HudPanel';
-import { StatBlock } from '../hud/StatBlock';
-import { ProgressBar } from '../ui/ProgressBar';
+import { PixelArt } from '../pixel/PixelArt';
+import { Text } from '../ui/Text';
 
-const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`);
+const pct = (value: number | null) => value === null ? '—' : `${Math.round(value * 100)}%`;
 
-/** Today's progress · Perfect Day streak · 30-day score · level. */
+/** The three useful travel stats; the passport already shows the level. */
 export function StatsStrip() {
   const player = useGame((s) => s.player);
   const habits = useGame((s) => s.habits);
   const recent = useGame((s) => s.recent);
   const today = useGame((s) => s.today);
   const progress = dayProgress(habits, recent, today);
-  const todayRate = progress.total ? progress.done / progress.total : 0;
-  const score = player.score30;
-
+  const stats = [
+    { art: 'star' as const, label: 'Today', value: `${progress.done}/${progress.total}`, hint: `Today ${progress.done} of ${progress.total} complete` },
+    { art: 'flame' as const, label: 'Day streak', value: String(player.perfectStreak), hint: `${player.perfectStreak} Perfect Days in a row` },
+    { art: 'trophy' as const, label: '30-day score', value: pct(player.score30), hint: `30-day completion ${pct(player.score30)}` },
+  ];
   return (
-    <HudPanel chamfer={12} padding={space.sm} style={styles.strip}>
-      <StatBlock
-        icon={ChartNoAxesColumnIncreasing}
-        label="Today's progress"
-        align="center"
-        value={pct(todayRate)}
-        accessibilityLabel={`Today ${progress.done} of ${progress.total} complete`}
-      >
-        <ProgressBar progress={todayRate} height={4} glow={false} />
-      </StatBlock>
-      <View style={styles.sep} />
-      <StatBlock
-        icon={Flame}
-        label="Day streak"
-        align="center"
-        value={String(player.perfectStreak)}
-        accessibilityLabel={`${player.perfectStreak} Perfect Days in a row`}
-      />
-      <View style={styles.sep} />
-      <StatBlock
-        icon={Crosshair}
-        label="Overall score"
-        align="center"
-        value={pct(score)}
-        accessibilityLabel={`30-day completion ${pct(score)}`}
-      />
-      <View style={styles.sep} />
-      <StatBlock icon={ChevronsUp} label="Level" align="center" value={String(levelInfo(player.totalXp).level)} />
-    </HudPanel>
+    <View style={styles.strip}>
+      {stats.map((stat) => (
+        <HudPanel key={stat.label} padding={space.sm} style={styles.tile}>
+          <View accessible accessibilityLabel={stat.hint} style={styles.content}>
+            <PixelArt name={stat.art} size={26} />
+            <Text style={styles.value}>{stat.value}</Text>
+            <Text variant="caption" style={styles.label} numberOfLines={1} adjustsFontSizeToFit>{stat.label}</Text>
+          </View>
+        </HudPanel>
+      ))}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  strip: { flexDirection: 'row', alignItems: 'stretch' },
-  sep: { width: StyleSheet.hairlineWidth, backgroundColor: colors.lineStrong, marginVertical: space.xs },
+  strip: { flexDirection: 'row', gap: space.sm },
+  tile: { flex: 1, minWidth: 0 },
+  content: { alignItems: 'center', gap: 3 },
+  value: { fontFamily: fonts.number, fontSize: 23, lineHeight: 27, color: colors.text },
+  label: { fontSize: 11, lineHeight: 15 },
 });

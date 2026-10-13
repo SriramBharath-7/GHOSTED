@@ -22,6 +22,8 @@ import { Screen } from '@/components/ui/Screen';
 import { ConfirmSheet } from '@/components/ui/Sheet';
 import { Text } from '@/components/ui/Text';
 import { TextField } from '@/components/ui/TextField';
+import { WorldScene } from '@/components/pixel/WorldScene';
+import { PixelArt } from '@/components/pixel/PixelArt';
 import { toast } from '@/components/ui/Toast';
 import { colors, fonts, space } from '@/config/theme';
 import { getDb } from '@/db/database';
@@ -128,6 +130,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen header={<Header back title="Settings" />}>
+      <WorldScene variant="settings" title="Make yourself at home" subtitle="Your adventure. Your pace." compact />
       <SectionTitle title="Player" />
       <TextField label="Name" value={name} onChangeText={setName} onBlur={saveName} onSubmitEditing={saveName} maxLength={24} autoCapitalize="characters" returnKeyType="done" />
 
@@ -254,6 +257,7 @@ function Footer({ version }: { version: string }) {
       }}
       accessible={false}
     >
+      <PixelArt name="ghost" size={42} />
       <Text style={styles.wordmark}>GHOSTED</Text>
       <Text variant="caption" color={colors.textMuted}>
         v{version} · Disappear. Build. Return.
@@ -266,5 +270,5 @@ const styles = StyleSheet.create({
   card: { paddingVertical: space.xs },
   notice: { gap: space.md, paddingBottom: space.md },
   footer: { alignItems: 'center', gap: space.xs, paddingVertical: space.xxl },
-  wordmark: { fontFamily: fonts.display, fontSize: 16, letterSpacing: 6, color: colors.textMuted },
+  wordmark: { fontFamily: fonts.display, fontSize: 18, letterSpacing: 1, color: colors.wood },
 });

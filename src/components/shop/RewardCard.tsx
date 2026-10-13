@@ -4,7 +4,6 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSeque
 import { colors, fonts, space } from '@/config/theme';
 import type { Reward } from '@/repo/rewards';
 import { HudPanel } from '../hud/HudPanel';
-import { IconBox } from '../hud/IconBox';
 import { CoinRing } from '../hud/StatBlock';
 import { SystemButton } from '../hud/SystemButton';
 import { HoloArt } from '../hud/icons';
@@ -62,11 +61,11 @@ export function RewardCard({ reward, balance, onBuy, onEdit, busy }: Props) {
     }
   };
 
-  const label = acquired ? 'Acquired' : soldOut ? 'Sold out' : short ? `Need ${short}` : armed ? 'Confirm' : 'Buy';
-  const artSize = Math.min(88, (Math.min(width, 520) - space.lg * 2 - space.md - space.md * 4) / 3);
+  const label = acquired ? 'Acquired!' : soldOut ? 'Sold out' : short ? `Need ${short}` : armed ? 'Confirm' : 'Buy';
+  const artSize = Math.min(90, (Math.min(width, 520) - space.lg * 2 - space.md - space.md * 4) / 3);
   return (
     <Animated.View style={[styles.flex, feedback]}>
-    <HudPanel chamfer={12} tone={acquired ? 'active' : 'cyan'} padding={space.md} style={styles.card}>
+    <HudPanel double tone={acquired ? 'active' : 'cyan'} padding={space.md} style={styles.card}>
       <PressableScale
         scaleTo={0.98}
         onLongPress={onEdit}
@@ -75,20 +74,11 @@ export function RewardCard({ reward, balance, onBuy, onEdit, busy }: Props) {
         accessibilityLabel={`${reward.name}, ${reward.cost} coins. Long press to edit`}
         style={styles.body}
       >
-        <View style={styles.tags}>
-          <IconBox icon={reward.icon} size={28} />
-          {reward.category ? (
-            <View style={styles.tag}>
-              <Text variant="label" style={styles.tagText} numberOfLines={1}>
-                {reward.category}
-              </Text>
-            </View>
-          ) : null}
-        </View>
         <Text style={styles.name} numberOfLines={2}>
           {reward.name}
         </Text>
-        <HoloArt name={reward.icon} size={artSize} />
+        <View style={[styles.art, acquired && styles.artAcquired]}><HoloArt name={reward.icon} size={artSize} /></View>
+        {reward.category ? <Text variant="caption" style={styles.category} numberOfLines={1}>{reward.category}</Text> : null}
         {reward.description ? (
           <Text variant="caption" numberOfLines={2} style={styles.desc}>
             {reward.description}
@@ -98,7 +88,7 @@ export function RewardCard({ reward, balance, onBuy, onEdit, busy }: Props) {
       <View style={styles.rule} />
       <View style={styles.price}>
         <CoinRing size={24} />
-        <Text variant="number" glow={!short && !soldOut}>
+        <Text variant="number" color={colors.coin} style={styles.cost} numberOfLines={1} adjustsFontSizeToFit>
           {reward.cost.toLocaleString('en-US')}
         </Text>
         {reward.stock !== null && !soldOut ? (
@@ -110,7 +100,7 @@ export function RewardCard({ reward, balance, onBuy, onEdit, busy }: Props) {
       <SystemButton
         label={label}
         compact
-        kind={armed || acquired ? 'primary' : 'outline'}
+        kind="primary"
         disabled={acquired || soldOut || short > 0}
         busy={busy}
         accessibilityHint={armed ? `Spend ${reward.cost} Ghost Coins` : 'Tap once to review, then confirm the purchase'}
@@ -125,12 +115,13 @@ const styles = StyleSheet.create({
   card: { flex: 1, gap: space.sm },
   flex: { flex: 1 },
   body: { gap: space.sm, flex: 1 },
-  tags: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  tag: { flexShrink: 1, borderWidth: 1, borderColor: colors.lineStrong, paddingHorizontal: 6, paddingVertical: 3 },
-  tagText: { fontSize: 8.5, letterSpacing: 1.4 },
-  name: { fontFamily: fonts.bodySemi, fontSize: 19, lineHeight: 24, minHeight: 48, color: colors.text },
-  desc: { minHeight: 36 },
+  art: { alignItems: 'center', justifyContent: 'center', minHeight: 100, backgroundColor: colors.surfaceHigh, borderWidth: 1, borderColor: colors.line, paddingVertical: space.sm },
+  artAcquired: { backgroundColor: '#D4E7AE' },
+  category: { fontSize: 10, lineHeight: 13, color: colors.textMuted },
+  name: { fontFamily: fonts.bodySemi, fontSize: 18, lineHeight: 22, minHeight: 44, color: colors.text },
+  desc: { minHeight: 34, fontSize: 12, lineHeight: 17 },
   rule: { height: StyleSheet.hairlineWidth, backgroundColor: colors.lineStrong },
-  price: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  stock: { marginLeft: 'auto', fontSize: 9 },
+  price: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
+  cost: { fontSize: 24, flexShrink: 1 },
+  stock: { marginLeft: 'auto', fontSize: 9, letterSpacing: 0 },
 });

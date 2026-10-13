@@ -23,6 +23,7 @@ import { LineChart } from '@/components/intel/LineChart';
 import { MonthBars } from '@/components/intel/MonthBars';
 import { IntelStats, StreakTiles } from '@/components/intel/Overview';
 import { StreakList } from '@/components/intel/StreakList';
+import { WorldScene } from '@/components/pixel/WorldScene';
 import { SectionTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Reveal, Screen } from '@/components/ui/Screen';
@@ -115,6 +116,7 @@ export default function HabitIntelScreen() {
 
   return (
     <Screen header={<AppHeader back />} footer={nav}>
+      <WorldScene variant="intel" title="Your progress, on record" subtitle="Every day leaves a mark." height={150} />
       <IntelHero
         habit={habit}
         fromY={fromY}
@@ -133,7 +135,7 @@ export default function HabitIntelScreen() {
             <HudPanel chamfer={12} style={styles.gap}>
               <SectionTitle
                 icon={ChartNoAxesColumnIncreasing}
-                title="Score trend"
+                title="Completion trend"
                 right={
                   <HudPressable tone="none" padding={space.xs} onPress={() => setRangeOpen(true)} accessibilityRole="button" accessibilityLabel="Change range" style={styles.range}>
                     <Text variant="label" style={styles.rangeLabel} numberOfLines={1} adjustsFontSizeToFit>{RANGES.find((r) => r.value === range)?.label}</Text>
@@ -293,8 +295,8 @@ function DaySheet({
 
 const styles = StyleSheet.create({
   gap: { gap: space.md },
-  range: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: 128, borderBottomWidth: 1, borderBottomColor: colors.lineStrong },
-  rangeLabel: { fontSize: 9, letterSpacing: 0.8, flexShrink: 1 },
+  range: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: 130, minHeight: 44 },
+  rangeLabel: { fontSize: 9, letterSpacing: 0, flexShrink: 1 },
   table: { gap: 2 },
   tableRow: {
     flexDirection: 'row',

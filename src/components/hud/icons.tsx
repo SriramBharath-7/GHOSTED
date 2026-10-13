@@ -47,6 +47,7 @@ import {
 } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 import { colors } from '@/config/theme';
+import { PixelArt, type PixelArtName } from '../pixel/PixelArt';
 import { RewardArt } from '../shop/RewardArt';
 import { Text } from '../ui/Text';
 
@@ -98,6 +99,15 @@ const ICONS: Record<string, LucideIcon> = {
   'ice-cream': IceCreamCone,
 };
 
+/** Stored keys stay unchanged; only their visual representation changes. */
+const PIXEL_ICONS: Partial<Record<string, PixelArtName>> = {
+  brain: 'brain', dumbbell: 'dumbbell', book: 'book', 'no-junk': 'apple', laptop: 'book', chart: 'flame',
+  leaf: 'apple', trophy: 'trophy', mountain: 'mountain',
+  burger: 'burger', film: 'popcorn', popcorn: 'popcorn', tv: 'popcorn',
+  gamepad: 'gamepad', shirt: 'shirt', coffee: 'coffee', gift: 'gift',
+  sparkles: 'star', bed: 'bed', bag: 'backpack', palm: 'tree',
+};
+
 export const HABIT_ICONS = [
   'brain', 'dumbbell', 'laptop', 'chart', 'no-junk', 'droplet', 'book', 'leaf', 'run',
   'pill', 'bed', 'salad', 'pen', 'no-smoking', 'target', 'heart', 'timer', 'code',
@@ -122,6 +132,8 @@ interface IconProps {
 
 /** Renders a line icon by key; anything unknown (an emoji) is drawn as text. */
 export function LineIcon({ name, size = 22, color = colors.cyan, strokeWidth = 1.7 }: IconProps) {
+  const pixel = PIXEL_ICONS[name];
+  if (pixel) return <PixelArt name={pixel} size={size} />;
   if (name === 'no-junk') {
     return (
       <View style={{ width: size, height: size }}>
@@ -148,34 +160,18 @@ export function LineIcon({ name, size = 22, color = colors.cyan, strokeWidth = 1
  * glow pass, the crisp line pass and faint scanlines. Static, cheap.
  */
 export function HoloArt({ name, size = 84, lite = false }: { name: string; size?: number; lite?: boolean }) {
-  if (['burger', 'film', 'tv', 'popcorn', 'gamepad', 'shirt', 'bed', 'palm'].includes(name)) {
+  if (['burger', 'film', 'tv', 'popcorn', 'gamepad', 'shirt', 'bed', 'palm', 'coffee', 'gift', 'bag', 'book', 'sparkles'].includes(name)) {
     return (
       <View style={styles.holo} accessibilityElementsHidden>
         <RewardArt name={name} width={size * 1.5} height={size * 1.15} />
       </View>
     );
   }
-  const lines = lite ? 0 : 7;
   return (
     <View style={[styles.holo, { width: size * 1.5, height: size * 1.15 }]} accessibilityElementsHidden>
-      {lite ? null : (
-        <View style={styles.center}>
-          <View style={styles.glowPass}>
-            <LineIcon name={name} size={size} color={colors.cyan} strokeWidth={4.5} />
-          </View>
-        </View>
-      )}
       <View style={styles.center}>
-        <LineIcon name={name} size={size} color={colors.cyanBright} strokeWidth={1.4} />
+        <LineIcon name={name} size={size * (lite ? 0.85 : 1)} color={colors.wood} strokeWidth={2.5} />
       </View>
-      {lines ? (
-        <View style={styles.scan} pointerEvents="none">
-          {Array.from({ length: lines }, (_, i) => (
-            <View key={i} style={styles.scanLine} />
-          ))}
-        </View>
-      ) : null}
-      <View style={styles.floor} />
     </View>
   );
 }
@@ -183,16 +179,4 @@ export function HoloArt({ name, size = 84, lite = false }: { name: string; size?
 const styles = StyleSheet.create({
   center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   holo: { alignSelf: 'center' },
-  glowPass: { opacity: 0.16 },
-  scan: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'space-between' },
-  scanLine: { height: 1, backgroundColor: 'rgba(3, 7, 13, 0.35)' },
-  floor: {
-    position: 'absolute',
-    left: '12%',
-    right: '12%',
-    bottom: 2,
-    height: 1,
-    backgroundColor: colors.cyan,
-    opacity: 0.5,
-  },
 });

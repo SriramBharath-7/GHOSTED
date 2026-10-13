@@ -3,7 +3,7 @@ import * as ScreenCapture from 'expo-screen-capture';
 import { Download, FingerprintPattern, KeyRound, Lock, Upload } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform, StyleSheet, View } from 'react-native';
-import { Card, SectionTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { AppHeader } from '@/components/hud/AppHeader';
 import { IconButton } from '@/components/ui/IconButton';
 import { Row, ToggleRow } from '@/components/ui/Row';
@@ -12,7 +12,9 @@ import { ConfirmSheet } from '@/components/ui/Sheet';
 import { toast } from '@/components/ui/Toast';
 import { PinPad } from '@/components/vault/PinPad';
 import { VaultHome } from '@/components/vault/VaultHome';
-import { space } from '@/config/theme';
+import { WorldScene } from '@/components/pixel/WorldScene';
+import { Text } from '@/components/ui/Text';
+import { colors, space } from '@/config/theme';
 import { getDb } from '@/db/database';
 import { type BackupFile, BackupError, exportBackup, importBackup, parseBackup } from '@/repo/backup';
 import { pickBackupText, shareBackup } from '@/services/backupFiles';
@@ -183,6 +185,7 @@ export default function VaultScreen() {
 
   return (
     <Screen
+      tint={colors.vault}
       header={
         <AppHeader
           back
@@ -204,6 +207,7 @@ export default function VaultScreen() {
         />
       }
     >
+      <WorldScene variant="vault" title={phase === 'open' ? 'Keep your own promise' : 'A quiet place'} subtitle="Some things are just for you." height={150} />
       {content}
     </Screen>
   );
@@ -245,7 +249,7 @@ function VaultSettings({
 
   return (
     <View style={styles.settings}>
-      <SectionTitle title="Private settings" />
+      <Text variant="title" color={colors.vaultDim}>Private settings</Text>
       <Card style={styles.card}>
         {bio.available ? (
           <ToggleRow
@@ -284,7 +288,7 @@ function VaultSettings({
 
 const styles = StyleSheet.create({
   unlocked: { gap: space.md },
-  pad: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: space.xxxl },
+  pad: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: space.md },
   settings: { gap: space.md, marginTop: space.xl },
   card: { paddingVertical: space.xs },
 });

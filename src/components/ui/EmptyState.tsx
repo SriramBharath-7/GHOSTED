@@ -4,6 +4,7 @@ import { colors, space } from '@/config/theme';
 import { HudPanel } from '../hud/HudPanel';
 import { SystemButton } from '../hud/SystemButton';
 import { Text } from './Text';
+import { PixelArt } from '../pixel/PixelArt';
 
 interface Props {
   icon: LucideIcon;
@@ -18,8 +19,8 @@ export function EmptyState({ icon: Icon, title, message, action, tint = colors.c
   return (
     <HudPanel tone="dim" chamfer={10} style={styles.wrap} padding={space.xxl}>
       <View style={styles.badge}>
-        <View style={[styles.diamond, { borderColor: tint }]} />
-        <Icon size={24} color={tint} strokeWidth={1.5} />
+        <PixelArt name="ghost" size={56} />
+        <View style={styles.marker}><Icon size={16} color={tint} strokeWidth={2} /></View>
       </View>
       <Text variant="title" align="center">
         {title}
@@ -35,12 +36,10 @@ export function EmptyState({ icon: Icon, title, message, action, tint = colors.c
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', gap: space.md },
   badge: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
-  diamond: {
+  marker: {
     position: 'absolute',
-    width: 42,
-    height: 42,
-    borderWidth: 1,
-    transform: [{ rotate: '45deg' }],
+    right: -7, bottom: 0, padding: 3,
+    borderWidth: 2, borderColor: colors.border, backgroundColor: colors.cream,
   },
   message: { maxWidth: 290 },
 });

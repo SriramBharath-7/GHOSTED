@@ -9,6 +9,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { ReorderRow } from '@/components/ui/ReorderRow';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
+import { WorldScene } from '@/components/pixel/WorldScene';
 import { colors, space } from '@/config/theme';
 import type { Db } from '@/db/db';
 import { getDb } from '@/db/database';
@@ -38,12 +39,13 @@ export default function HabitsScreen() {
       header={
         <Header
           back
-          eyebrow="Daily discipline"
+          eyebrow="Quest workshop"
           title="Habits"
           right={<IconButton icon={Plus} label="Add habit" onPress={() => router.push('/habit-editor')} />}
         />
       }
     >
+      <WorldScene variant="daily" title="Build your daily loadout" subtitle="Small quests. A stronger you." compact />
       <Text variant="caption" color={colors.textMuted}>
         Order here is the order on Player and Daily.
       </Text>
@@ -101,6 +103,6 @@ function HabitLine({ habit }: { habit: Habit }) {
 
 const styles = StyleSheet.create({
   list: { gap: space.sm },
-  dot: { width: 4, height: 28, borderRadius: 2 },
+  dot: { width: 4, height: 32 },
   text: { flex: 1, gap: 2 },
 });

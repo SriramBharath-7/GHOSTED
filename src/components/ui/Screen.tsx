@@ -30,7 +30,7 @@ export function Screen({ children, header, footer, scroll = true, tint }: Props)
   return (
     <View style={styles.root}>
       <HudBackground tint={tint} />
-      <View style={{ paddingTop: insets.top }}>{header}</View>
+      <View style={{ paddingTop: insets.top, backgroundColor: tint === colors.vault ? colors.vaultBg : colors.forest }}>{header}</View>
       {scroll ? (
         <ScrollView
           contentContainerStyle={[styles.content, bottom]}
@@ -65,6 +65,6 @@ export function Reveal({ index = 0, children }: { index?: number; children: Reac
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: space.lg, gap: space.md },
+  content: { paddingHorizontal: space.lg, paddingTop: space.md, gap: space.md, width: '100%', maxWidth: 680, alignSelf: 'center' },
   fill: { flex: 1 },
 });

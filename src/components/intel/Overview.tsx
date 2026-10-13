@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, ChevronUp, Crosshair, Database, Flame, type LucideIcon, TrendingUp, Trophy } from 'lucide-react-native';
+import { CalendarDays, ChevronDown, ChevronUp, Crosshair, Database, TrendingUp } from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
@@ -6,6 +6,7 @@ import Svg, { Path } from 'react-native-svg';
 import { colors, fonts, space } from '@/config/theme';
 import type { HabitOverview, SeriesPoint } from '@/domain/stats';
 import { HudPanel } from '../hud/HudPanel';
+import { PixelArt } from '../pixel/PixelArt';
 import { StatBlock } from '../hud/StatBlock';
 import { ProgressBar } from '../ui/ProgressBar';
 import { Text } from '../ui/Text';
@@ -66,28 +67,33 @@ export function IntelStats({
   const monthColor = (data.month.delta ?? 0) < 0 ? colors.danger : colors.success;
   const yearColor = (data.year.delta ?? 0) < 0 ? colors.danger : colors.success;
   return (
-    <HudPanel chamfer={12} padding={space.md} style={styles.strip}>
+    <View style={styles.strip}>
+      <HudPanel padding={space.md} style={styles.statCard}>
       <StatBlock icon={Crosshair} label="Score" value={pct(data.score30.rate)} accessibilityLabel={`30-day score ${pct(data.score30.rate)}`}>
-        <ProgressBar progress={data.score30.rate ?? 0} height={4} glow={false} />
+        <ProgressBar progress={data.score30.rate ?? 0} height={6} glow={false} />
       </StatBlock>
-      <View style={styles.sep} />
+      </HudPanel>
+      <HudPanel padding={space.md} style={styles.statCard}>
+        <StatBlock icon={Database} label="Total completions" value={String(data.total)} accessibilityLabel={`${data.total} total completions`} />
+      </HudPanel>
+      <HudPanel padding={space.md} style={styles.statCard}>
       <StatBlock icon={CalendarDays} label="Last 30d" value={<Delta delta={data.month.delta} />} accessibilityLabel="Last 30 days, change versus prior 30 days">
         <Sparkline points={month} color={monthColor} />
       </StatBlock>
-      <View style={styles.sep} />
+      </HudPanel>
+      <HudPanel padding={space.md} style={styles.statCard}>
       <StatBlock icon={TrendingUp} label="Last 365d" value={<Delta delta={data.year.delta} />} accessibilityLabel="Last 365 days, change versus prior 365 days">
         <Sparkline points={year} color={yearColor} />
       </StatBlock>
-      <View style={styles.sep} />
-      <StatBlock icon={Database} label="Total" value={String(data.total)} accessibilityLabel={`${data.total} total completions`} />
-    </HudPanel>
+      </HudPanel>
+    </View>
   );
 }
 
-function Tile({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
+function Tile({ art, label, value }: { art: 'flame' | 'crown'; label: string; value: number }) {
   return (
     <HudPanel chamfer={12} style={styles.tile} padding={space.md}>
-      <Icon size={30} color={colors.cyan} strokeWidth={1.5} />
+      <PixelArt name={art} size={36} />
       <View style={styles.tileText} accessible accessibilityLabel={`${label} ${value} days`}>
         <Text variant="label" style={styles.tileLabel}>
           {label}
@@ -106,21 +112,21 @@ function Tile({ icon: Icon, label, value }: { icon: LucideIcon; label: string; v
 export function StreakTiles({ current, best }: { current: number; best: number }) {
   return (
     <View style={styles.tiles}>
-      <Tile icon={Flame} label="Current streak" value={current} />
-      <Tile icon={Trophy} label="Best streak" value={best} />
+      <Tile art="flame" label="Current streak" value={current} />
+      <Tile art="crown" label="Best streak" value={best} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  strip: { flexDirection: 'row', alignItems: 'stretch' },
-  sep: { width: StyleSheet.hairlineWidth, backgroundColor: colors.lineStrong, marginVertical: space.xs },
+  strip: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
+  statCard: { width: '47%', flexGrow: 1, minHeight: 116 },
   value: { fontSize: 20, lineHeight: 26 },
   delta: { flexDirection: 'row', alignItems: 'center' },
   tiles: { flexDirection: 'row', gap: space.md },
   tile: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm },
   tileText: { flex: 1, gap: 2 },
-  tileLabel: { fontSize: 9.5, letterSpacing: 1.5 },
+  tileLabel: { fontSize: 9, lineHeight: 14, letterSpacing: 0 },
   tileValue: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
   tileNumber: { fontSize: 32, lineHeight: 38, flexShrink: 1 },
   days: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.textDim },

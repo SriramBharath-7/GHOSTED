@@ -1,4 +1,4 @@
-import { CalendarDays, Flame, Lock, RotateCw } from 'lucide-react-native';
+import { RotateCw } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { colors, fonts, space } from '@/config/theme';
@@ -9,9 +9,8 @@ import { listRuns, resetRun, runLength, setCurrentStart, startRun, summarizeVaul
 import { haptics } from '@/services/haptics';
 import { useGame } from '@/state/game';
 import { useLiveQuery } from '@/state/useLiveQuery';
-import { HudFrame } from '../hud/HudFrame';
 import { HudPanel } from '../hud/HudPanel';
-import { StatBlock } from '../hud/StatBlock';
+import { PixelArt } from '../pixel/PixelArt';
 import { SystemButton } from '../hud/SystemButton';
 import { SectionTitle } from '../ui/Card';
 import { Reveal } from '../ui/Screen';
@@ -28,11 +27,10 @@ function VaultTitle() {
   return (
     <View style={styles.titleRow}>
       <View style={styles.lockBox}>
-        <HudFrame width={58} height={58} chamfer={6} tone="cyan" />
-        <Lock size={26} color={colors.cyanBright} strokeWidth={1.6} />
+        <PixelArt name="lantern" size={58} />
       </View>
       <View style={styles.flex}>
-        <Text variant="title" glow style={styles.title}>
+        <Text variant="title" style={styles.title}>
           Private Vault
         </Text>
         <Text style={styles.subtitle}>{VAULT_TITLE}</Text>
@@ -55,12 +53,14 @@ export function VaultHome() {
   if (!summary.current) {
     return (
       <Reveal>
-        <HudPanel double chamfer={16} style={styles.panel}>
+        <HudPanel tone="danger" double chamfer={16} style={styles.panel}>
           <VaultTitle />
-          <Text variant="body" color={colors.textDim}>
+          <Text variant="body" color={colors.vaultDim}>
             Count the days you hold the line. Nothing here leaves this screen.
           </Text>
-          <Stepper label="Days already in this run" value={initialDays} onChange={setInitialDays} max={3650} step={1} />
+          <HudPanel tone="dim">
+            <Stepper label="Days already in this run" value={initialDays} onChange={setInitialDays} max={3650} step={1} />
+          </HudPanel>
           <SystemButton
             label="Begin"
             kind="primary"
@@ -81,39 +81,41 @@ export function VaultHome() {
   return (
     <View style={styles.home}>
       <Reveal index={0}>
-        <HudPanel double chamfer={16} style={styles.panel}>
+        <HudPanel tone="danger" double chamfer={16} style={styles.panel}>
           <VaultTitle />
           <View style={styles.gauge}>
             <VaultGauge days={summary.days} progress={toNext} />
           </View>
-          <Text variant="label" align="center" color={colors.textMuted}>
-            {next ? `Next marker · ${next} days · ${next - summary.days} to go` : 'Every marker passed'}
+          <Text variant="caption" align="center" color={colors.vaultDim}>
+            {next ? `Next marker · ${next} ${next === 1 ? 'day' : 'days'} · ${next - summary.days} to go` : 'Every marker passed'}
           </Text>
           {summary.reachedToday ? (
-            <Text variant="caption" align="center" color={colors.cyanBright}>
+            <Text variant="caption" align="center" color={colors.gold}>
               Day {summary.reachedToday}. Quietly done.
             </Text>
           ) : null}
-          <HudPanel chamfer={12} padding={space.md} style={styles.stats}>
-            <StatBlock icon={Flame} label="Best streak" value={String(summary.best)} unit="days" align="center" />
+          <View style={styles.stats}>
+            <View style={styles.stat} accessible accessibilityLabel={`Best streak ${summary.best} days`}>
+              <PixelArt name="crown" size={30} />
+              <Text variant="number" color={colors.gold}>{summary.best}</Text>
+              <Text variant="caption" color={colors.vaultDim} align="center">Best streak</Text>
+            </View>
             <View style={styles.sep} />
-            <StatBlock icon={CalendarDays} label="Total days" value={String(summary.total)} unit="days" align="center" />
+            <View style={styles.stat} accessible accessibilityLabel={`Total days ${summary.total}`}>
+              <PixelArt name="star" size={30} />
+              <Text variant="number" color={colors.gold}>{summary.total}</Text>
+              <Text variant="caption" color={colors.vaultDim} align="center">Total days</Text>
+            </View>
             <View style={styles.sep} />
-            <StatBlock
-              icon={CalendarDays}
-              label="Start date"
-              align="center"
-              accessibilityLabel={`Started ${start}`}
-              value={
-                <View style={styles.date}>
-                  <Text style={styles.dateMain} glow numberOfLines={1} adjustsFontSizeToFit>
-                    {dayOfMonth(start)} {MONTHS_SHORT[Number(start.slice(5, 7)) - 1].toUpperCase()}
-                  </Text>
-                  <Text style={styles.year}>{start.slice(0, 4)}</Text>
-                </View>
-              }
-            />
-          </HudPanel>
+            <View style={styles.stat} accessible accessibilityLabel={`Started ${start}`}>
+              <Text style={styles.year}>{start.slice(0, 4)}</Text>
+              <Text style={styles.dateMain} numberOfLines={1} adjustsFontSizeToFit>
+                {dayOfMonth(start)} {MONTHS_SHORT[Number(start.slice(5, 7)) - 1].toUpperCase()}
+              </Text>
+              <Text variant="caption" color={colors.vaultDim}>Started</Text>
+            </View>
+          </View>
+          <Text variant="caption" align="center" color={colors.vaultText}>Not everyone knows. That’s the point.</Text>
           <SystemButton label="Reset vault" kind="danger" icon={RotateCw} onPress={() => setConfirmReset(true)} />
         </HudPanel>
       </Reveal>
@@ -177,14 +179,14 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
   lockBox: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
-  title: { fontSize: 19, letterSpacing: 4 },
-  subtitle: { fontFamily: fonts.body, fontSize: 14, letterSpacing: 4, color: colors.textDim, marginTop: 2 },
+  title: { fontSize: 16, letterSpacing: 0, color: colors.vaultText },
+  subtitle: { fontFamily: fonts.display, fontSize: 12, letterSpacing: 0, color: colors.gold, marginTop: 6 },
   gauge: { alignItems: 'center' },
-  stats: { flexDirection: 'row' },
-  sep: { width: StyleSheet.hairlineWidth, backgroundColor: colors.lineStrong, marginVertical: space.xs },
-  date: { alignItems: 'center' },
-  dateMain: { fontFamily: fonts.number, fontSize: 22, lineHeight: 27, color: colors.text },
-  year: { fontFamily: fonts.displayMedium, fontSize: 11, letterSpacing: 2, color: colors.textDim },
+  stats: { flexDirection: 'row', borderTopWidth: 2, borderBottomWidth: 2, borderColor: colors.wood, paddingVertical: space.md },
+  stat: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xs },
+  sep: { width: 2, backgroundColor: colors.wood, marginVertical: space.xs },
+  dateMain: { fontFamily: fonts.number, fontSize: 21, lineHeight: 27, color: colors.gold },
+  year: { fontFamily: fonts.displayMedium, fontSize: 11, color: colors.vaultDim },
   list: { gap: space.sm },
   historyRow: {
     flexDirection: 'row',

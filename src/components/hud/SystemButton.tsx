@@ -18,21 +18,21 @@ interface Props {
 }
 
 const FILL: Record<Kind, string | undefined> = {
-  primary: 'rgba(79, 216, 255, 0.16)',
-  outline: 'rgba(5, 16, 30, 0.5)',
+  primary: colors.success,
+  outline: colors.panelStrong,
   ghost: 'transparent',
-  danger: 'rgba(255, 59, 78, 0.12)',
+  danger: colors.wood,
 };
 
 /** Letter-spaced HUD button. Primary glows; danger is the only red control. */
 export function SystemButton({ label, onPress, kind = 'outline', icon: Icon, disabled, busy, compact, accessibilityHint }: Props) {
-  const ink = kind === 'danger' ? colors.danger : kind === 'ghost' ? colors.textDim : colors.cyanBright;
+  const ink = kind === 'primary' || kind === 'danger' ? colors.cream : kind === 'ghost' ? colors.textDim : colors.text;
   return (
     <HudPressable
       onPress={onPress}
       disabled={disabled || busy}
       feedback
-      tone={kind === 'danger' ? 'danger' : kind === 'ghost' ? 'none' : kind === 'primary' ? 'active' : 'cyan'}
+      tone={kind === 'ghost' ? 'none' : 'cyan'}
       fill={FILL[kind]}
       chamfer={chamfer.sm}
       padding={0}
@@ -40,7 +40,7 @@ export function SystemButton({ label, onPress, kind = 'outline', icon: Icon, dis
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled: !!disabled, busy: !!busy }}
+      accessibilityState={{ disabled: !!disabled || !!busy, busy: !!busy }}
       style={[styles.base, compact && styles.compact, disabled && styles.disabled]}
     >
       {busy ? (
@@ -50,8 +50,9 @@ export function SystemButton({ label, onPress, kind = 'outline', icon: Icon, dis
           {Icon ? <Icon size={18} color={ink} strokeWidth={1.9} /> : null}
           <Text
             style={[styles.label, { color: ink }]}
-            glow={kind === 'primary' ? true : kind === 'danger' ? 'danger' : undefined}
             numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
           >
             {label}
           </Text>
@@ -63,8 +64,8 @@ export function SystemButton({ label, onPress, kind = 'outline', icon: Icon, dis
 
 const styles = StyleSheet.create({
   base: { minHeight: TOUCH + 2, paddingHorizontal: space.xl, alignItems: 'center', justifyContent: 'center' },
-  compact: { minHeight: TOUCH - 4, paddingHorizontal: space.lg },
+  compact: { minHeight: TOUCH, paddingHorizontal: space.md },
   disabled: { opacity: 0.42 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  label: { fontFamily: fonts.displaySemi, fontSize: 13, letterSpacing: 3, textTransform: 'uppercase' },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, maxWidth: '100%' },
+  label: { fontFamily: fonts.displaySemi, fontSize: 13, letterSpacing: 0.2, textTransform: 'uppercase', flexShrink: 1 },
 });

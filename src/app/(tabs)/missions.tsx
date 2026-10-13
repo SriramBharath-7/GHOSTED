@@ -7,6 +7,7 @@ import { HudPanel } from '@/components/hud/HudPanel';
 import { HudTabs } from '@/components/hud/HudTabs';
 import { SystemButton } from '@/components/hud/SystemButton';
 import { MissionRow } from '@/components/missions/MissionRow';
+import { WorldScene } from '@/components/pixel/WorldScene';
 import { SectionTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Reveal, Screen } from '@/components/ui/Screen';
@@ -49,6 +50,9 @@ export default function MissionsScreen() {
   return (
     <Screen header={<AppHeader ghost />}>
       <Reveal index={0}>
+        <WorldScene variant="missions" title="The quest map" subtitle="Big dreams. One milestone at a time." height={150} />
+      </Reveal>
+      <Reveal index={1}>
         <HudTabs options={HORIZONS} value={horizon} onChange={setHorizon} height={58} />
       </Reveal>
 
@@ -56,11 +60,11 @@ export default function MissionsScreen() {
         <Reveal index={1}>
           <EmptyState
             icon={Crosshair}
-            title="No missions yet"
+            title="An open road"
             message={
               horizon === 'short'
-                ? 'Missions are outcomes you’re working toward in the coming weeks. They stay separate from your daily habits.'
-                : 'The bigger outcomes. Months, not days.'
+                ? 'Choose an outcome to work toward in the coming weeks. Your daily habits have their own quest board.'
+                : 'Choose a bigger destination. Give it the months it deserves.'
             }
             action={{ label: 'New mission', onPress: create }}
           />

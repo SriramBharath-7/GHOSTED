@@ -5,6 +5,8 @@ import { StyleSheet, View } from 'react-native';
 import { ParticleBurst } from '@/components/fx/ParticleBurst';
 import { Button } from '@/components/ui/Button';
 import { IconPicker } from '@/components/hud/IconPicker';
+import { IconBox } from '@/components/hud/IconBox';
+import { HudPanel } from '@/components/hud/HudPanel';
 import { MISSION_ICONS } from '@/components/hud/icons';
 import { SectionTitle } from '@/components/ui/Card';
 import { Header } from '@/components/ui/Header';
@@ -13,6 +15,7 @@ import { Segmented } from '@/components/ui/Segmented';
 import { ConfirmSheet } from '@/components/ui/Sheet';
 import { Stepper } from '@/components/ui/Stepper';
 import { TextField } from '@/components/ui/TextField';
+import { Text } from '@/components/ui/Text';
 import { DateField } from '@/components/ui/TimeField';
 import { toast } from '@/components/ui/Toast';
 import { colors, space } from '@/config/theme';
@@ -155,6 +158,13 @@ function MissionForm({
 
   return (
     <Screen header={<Header back eyebrow={id ? 'Mission' : 'New mission'} title={form.title || 'Untitled'} />}>
+      <HudPanel style={styles.preview}>
+        <IconBox icon={form.icon} size={64} tone="active" />
+        <View style={styles.previewCopy}>
+          <Text variant="heading">Chart a new adventure</Text>
+          <Text variant="caption">Set your destination. Make the next step count.</Text>
+        </View>
+      </HudPanel>
       <Segmented options={HORIZONS} value={form.horizon} onChange={(v) => set('horizon', v)} />
       <TextField
         label="Mission"
@@ -240,5 +250,7 @@ function MissionForm({
 }
 
 const styles = StyleSheet.create({
+  preview: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  previewCopy: { flex: 1, gap: space.xs },
   actions: { gap: space.sm, marginTop: space.md },
 });

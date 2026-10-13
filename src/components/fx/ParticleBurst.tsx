@@ -10,6 +10,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { seeded } from '@/domain/seeded';
+import { colors } from '@/config/theme';
 
 
 interface ParticleSpec {
@@ -46,7 +47,7 @@ function Particle({
     <Animated.View
       style={[
         styles.dot,
-        { width: spec.size, height: spec.size, borderRadius: spec.size / 2, backgroundColor: color },
+        { width: spec.size, height: spec.size, backgroundColor: color },
         style,
       ]}
     />
@@ -75,7 +76,7 @@ export function ParticleBurst({ burstKey, color, count = 18, radius = 80, durati
         return {
           angle: (i / count) * Math.PI * 2 + r(1) * 0.6,
           distance: radius * (0.45 + r(2) * 0.65),
-          size: 3 + r(3) * 4,
+          size: 4 + Math.floor(r(3) * 3) * 2,
           delay: r(4) * 0.18,
         };
       }),
@@ -94,7 +95,7 @@ export function ParticleBurst({ burstKey, color, count = 18, radius = 80, durati
   return (
     <View pointerEvents="none" style={styles.origin}>
       {specs.map((spec, i) => (
-        <Particle key={i} progress={progress} spec={spec} color={color} gravity={gravity} />
+        <Particle key={i} progress={progress} spec={spec} color={i % 4 === 0 ? colors.gold : i % 4 === 1 ? colors.cream : color} gravity={gravity} />
       ))}
     </View>
   );

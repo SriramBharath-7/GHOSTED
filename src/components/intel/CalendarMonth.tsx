@@ -108,7 +108,7 @@ function DayCell({ day, history, onPress }: { day: DateKey; history: HabitHistor
       >
         <Text
           variant="bodyStrong"
-          color={status === 'done' ? colors.bg : status === 'missed' ? colors.textDim : colors.text}
+          color={status === 'done' ? colors.cream : status === 'missed' ? colors.textDim : colors.text}
           style={styles.num}
         >
           {dayOfMonth(day)}
@@ -131,20 +131,21 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(79, 216, 255, 0.1)',
+    borderWidth: 2,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
     overflow: 'hidden',
   },
-  done: { backgroundColor: colors.cyan, borderColor: colors.cyanBright },
-  missed: { borderColor: 'rgba(79, 216, 255, 0.28)' },
-  today: { borderColor: colors.cyanBright, borderWidth: 1.5 },
+  done: { backgroundColor: colors.success, borderColor: colors.forest },
+  missed: { backgroundColor: colors.bg, borderColor: colors.lineStrong },
+  today: { borderColor: colors.wood, borderWidth: 3 },
   dim: { opacity: 0.38 },
   num: { fontSize: 14 },
   slash: {
     position: 'absolute',
     width: '140%',
     height: 1,
-    backgroundColor: 'rgba(166, 193, 212, 0.35)',
+    backgroundColor: colors.lineStrong,
     transform: [{ rotate: '-45deg' }],
   },
 });

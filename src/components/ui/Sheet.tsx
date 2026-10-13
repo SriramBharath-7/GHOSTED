@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import Animated, { SlideInDown } from 'react-native-reanimated';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { SlideInDown, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, space } from '@/config/theme';
 import { HudFrame } from '../hud/HudFrame';
@@ -19,6 +19,7 @@ interface SheetProps {
 export function Sheet({ visible, onClose, children, tone = 'cyan' }: SheetProps) {
   const insets = useSafeAreaInsets();
   const { box, onLayout } = useBox();
+  const reduced = useReducedMotion();
   return (
     <Modal
       visible={visible}
@@ -30,13 +31,15 @@ export function Sheet({ visible, onClose, children, tone = 'cyan' }: SheetProps)
     >
       <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel="Close" />
       <Animated.View
-        entering={SlideInDown.duration(240)}
+        entering={reduced ? undefined : SlideInDown.duration(240)}
         style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}
         onLayout={onLayout}
       >
         {box ? <HudFrame width={box.w} height={box.h + 20} chamfer={14} tone={tone} fill={colors.panelStrong} double /> : null}
         <View style={[styles.handle, tone === 'danger' && { backgroundColor: colors.danger }]} />
-        {children}
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {children}
+        </ScrollView>
       </Animated.View>
     </Modal>
   );
@@ -74,6 +77,7 @@ export function ConfirmSheet({ visible, title, message, confirmLabel, onConfirm,
 const styles = StyleSheet.create({
   scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.scrim },
   sheet: {
+    zIndex: 0,
     position: 'absolute',
     left: space.sm,
     right: space.sm,
@@ -81,6 +85,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingTop: space.md,
     gap: space.md,
+    maxHeight: '88%',
   },
   handle: {
     alignSelf: 'center',
@@ -91,4 +96,5 @@ const styles = StyleSheet.create({
     marginBottom: space.sm,
   },
   actions: { gap: space.sm, marginTop: space.sm },
+  content: { gap: space.md, paddingBottom: 4 },
 });

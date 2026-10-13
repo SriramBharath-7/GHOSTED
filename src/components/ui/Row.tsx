@@ -64,8 +64,8 @@ export function ToggleRow({ icon, title, subtitle, value, onChange, tint = color
             haptics.tap();
             onChange(next);
           }}
-          trackColor={{ false: 'rgba(79, 216, 255, 0.14)', true: tint }}
-          thumbColor={value ? colors.cyanBright : colors.textDim}
+          trackColor={{ false: colors.lineStrong, true: tint }}
+          thumbColor={colors.cream}
           accessibilityLabel={title}
         />
       }

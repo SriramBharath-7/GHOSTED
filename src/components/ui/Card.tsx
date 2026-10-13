@@ -21,15 +21,15 @@ export function SectionTitle({ title, right, icon: Icon }: { title: string; righ
       <View style={styles.left}>
         {Icon ? (
           <View style={styles.icon}>
-            <Icon size={20} color={colors.cyan} strokeWidth={1.8} />
+            <Icon size={20} color={colors.gold} strokeWidth={2} />
           </View>
         ) : null}
-        <Text variant="title" accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>
+        <Text variant="title" color={colors.cream} accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>
           {title}
         </Text>
       </View>
       {typeof right === 'string' ? (
-        <Text variant="label" numberOfLines={1} style={styles.right}>
+        <Text variant="label" color={colors.cream} numberOfLines={1} style={styles.right}>
           {right}
         </Text>
       ) : (
@@ -45,10 +45,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: space.sm,
-    minHeight: 30,
+    minHeight: 42,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: colors.wood,
+    borderWidth: 2,
+    borderColor: colors.woodDark,
+    borderBottomColor: colors.border,
   },
   left: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flex: 1, minWidth: 0 },
   icon: { flexShrink: 0 },
-  title: { flexShrink: 1, fontSize: 13, letterSpacing: 1.7 },
-  right: { flexShrink: 0, fontSize: 9, letterSpacing: 1.2 },
+  title: { flexShrink: 1, fontSize: 12, letterSpacing: 0.2 },
+  right: { flexShrink: 0, fontSize: 9, letterSpacing: 0 },
 });

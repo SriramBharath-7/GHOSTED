@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { IconPicker } from '@/components/hud/IconPicker';
+import { HudPanel } from '@/components/hud/HudPanel';
 import { HoloArt, REWARD_ICONS } from '@/components/hud/icons';
 import { SectionTitle } from '@/components/ui/Card';
 import { Header } from '@/components/ui/Header';
@@ -12,6 +13,7 @@ import { Screen } from '@/components/ui/Screen';
 import { ConfirmSheet } from '@/components/ui/Sheet';
 import { Stepper } from '@/components/ui/Stepper';
 import { TextField } from '@/components/ui/TextField';
+import { Text } from '@/components/ui/Text';
 import { REWARD_LIMITS } from '@/config/game';
 import { colors, space } from '@/config/theme';
 import type { Db } from '@/db/db';
@@ -67,9 +69,13 @@ function RewardForm({ id, initial }: { id: number | null; initial: RewardInput }
 
   return (
     <Screen header={<Header back eyebrow={id ? 'Edit reward' : 'New reward'} title={form.name || 'Untitled'} />}>
-      <View style={styles.preview}>
-        <HoloArt name={form.icon} size={72} />
-      </View>
+      <HudPanel style={styles.preview}>
+        <HoloArt name={form.icon} size={64} />
+        <View style={styles.previewCopy}>
+          <Text variant="heading">A reward worth earning</Text>
+          <Text variant="caption">Put something you love on the shop shelf.</Text>
+        </View>
+      </HudPanel>
       <TextField
         label="Name"
         value={form.name}
@@ -123,5 +129,6 @@ function RewardForm({ id, initial }: { id: number | null; initial: RewardInput }
 }
 
 const styles = StyleSheet.create({
-  preview: { alignItems: 'center', paddingVertical: space.sm },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  previewCopy: { flex: 1, gap: space.xs },
 });

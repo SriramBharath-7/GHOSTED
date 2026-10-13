@@ -28,8 +28,8 @@ const PH = H / ROWS;
 const DURATION = 850;
 
 /**
- * Digital dissolve: the card breaks into tiles that drift up and away
- * left-to-right while cyan sparks lift off. Each tile renders the real card
+ * Pixel dissolve: the card breaks into tiles that drift up and away
+ * left-to-right while gold sparks lift off. Each tile renders the real card
  * clipped to its slice (no snapshot library needed). Pass a lightweight face.
  */
 export function Disintegrate({ face, onDone }: { face: ReactElement; onDone: () => void }) {
@@ -64,15 +64,15 @@ export function Disintegrate({ face, onDone }: { face: ReactElement; onDone: () 
                 {face}
               </Piece>
             ))}
-        {reduced ? null : <ParticleBurst burstKey={1} color={colors.cyan} count={12} radius={130} duration={1050} gravity={-30} />}
+        {reduced ? null : <ParticleBurst burstKey={1} color={colors.gold} count={12} radius={130} duration={1050} gravity={-30} />}
       </Animated.View>
       <Animated.View entering={reduced ? undefined : FadeIn.delay(680).duration(200)} style={styles.caption}>
-        <Text variant="label" color={colors.textDim} align="center">SYSTEM / REDEMPTION</Text>
-        <Text variant="title" color={colors.cyanBright} align="center" glow>
-          Item used
+        <Text variant="label" color={colors.gold} align="center">Reward redeemed</Text>
+        <Text variant="title" color={colors.cream} align="center">
+          Enjoy your reward
         </Text>
-        <Text variant="caption" align="center">
-          Enjoy it. You earned it.
+        <Text variant="caption" color={colors.cream} align="center">
+          You earned this little moment.
         </Text>
       </Animated.View>
     </View>

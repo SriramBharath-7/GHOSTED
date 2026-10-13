@@ -1,0 +1,434 @@
+{
+  "dawn": {
+    "source": "asset_sheets/pixel_art_environment_asset_atlas.png",
+    "crop": [
+      17,
+      1131,
+      403,
+      1230
+    ],
+    "matteRemoved": false,
+    "width": 386,
+    "height": 99
+  },
+  "night": {
+    "source": "asset_sheets/pixel_art_environment_asset_atlas.png",
+    "crop": [
+      417,
+      1129,
+      723,
+      1230
+    ],
+    "matteRemoved": false,
+    "width": 306,
+    "height": 101
+  },
+  "ghost": {
+    "source": "asset_sheets/ghosted_character_and_mascot_sprite_sheet.png",
+    "crop": [
+      20,
+      1020,
+      120,
+      1113
+    ],
+    "matteRemoved": true,
+    "width": 97,
+    "height": 86
+  },
+  "ghostCelebrate": {
+    "source": "asset_sheets/ghosted_character_and_mascot_sprite_sheet.png",
+    "crop": [
+      660,
+      1004,
+      792,
+      1110
+    ],
+    "matteRemoved": true,
+    "width": 126,
+    "height": 108
+  },
+  "player": {
+    "source": "asset_sheets/ghosted_character_and_mascot_sprite_sheet.png",
+    "crop": [
+      49,
+      187,
+      171,
+      300
+    ],
+    "matteRemoved": false,
+    "width": 122,
+    "height": 113
+  },
+  "hero": {
+    "source": "asset_sheets/ghosted_character_and_mascot_sprite_sheet.png",
+    "crop": [
+      358,
+      385,
+      586,
+      571
+    ],
+    "matteRemoved": true,
+    "width": 230,
+    "height": 181
+  },
+  "merchant": {
+    "source": "asset_sheets/pixel_art_environment_asset_atlas.png",
+    "crop": [
+      553,
+      683,
+      778,
+      848
+    ],
+    "matteRemoved": true,
+    "width": 229,
+    "height": 169
+  },
+  "chest": {
+    "source": "asset_sheets/pixel_art_environment_asset_atlas.png",
+    "crop": [
+      948,
+      694,
+      1041,
+      790
+    ],
+    "matteRemoved": true,
+    "width": 97,
+    "height": 100
+  },
+  "backpack": {
+    "source": "asset_sheets/ghosted_character_and_mascot_sprite_sheet.png",
+    "crop": [
+      25,
+      1303,
+      119,
+      1378
+    ],
+    "matteRemoved": true,
+    "width": 86,
+    "height": 75
+  },
+  "lantern": {
+    "source": "asset_sheets/pixel_art_environment_asset_atlas.png",
+    "crop": [
+      376,
+      559,
+      443,
+      638
+    ],
+    "matteRemoved": "glow",
+    "width": 60,
+    "height": 83
+  },
+  "tree": {
+    "source": "asset_sheets/pixel_art_environment_asset_atlas.png",
+    "crop": [
+      705,
+      275,
+      794,
+      420
+    ],
+    "matteRemoved": true,
+    "width": 88,
+    "height": 146
+  },
+  "brain": {
+    "source": "asset_sheets/ghosted_pixel_ui_icon_atlas.png",
+    "crop": [
+      35,
+      211,
+      192,
+      348
+    ],
+    "matteRemoved": false,
+    "width": 157,
+    "height": 137
+  },
+  "dumbbell": {
+    "source": "asset_sheets/ghosted_pixel_ui_icon_atlas.png",
+    "crop": [
+      215,
+      211,
+      374,
+      348
+    ],
+    "matteRemoved": false,
+    "width": 159,
+    "height": 137
+  },
+  "book": {
+    "source": "asset_sheets/ghosted_pixel_ui_icon_atlas.png",
+    "crop": [
+      397,
+      211,
+      550,
+      348
+    ],
+    "matteRemoved": false,
+    "width": 153,
+    "height": 137
+  },
+  "flame": {
+    "source": "asset_sheets/ghosted_pixel_ui_icon_atlas.png",
+    "crop": [
+      574,
+      211,
+      729,
+      348
+    ],
+    "matteRemoved": false,
+    "width": 155,
+    "height": 137
+  },
+  "apple": {
+    "source": "asset_sheets/ghosted_pixel_ui_icon_atlas.png",
+    "crop": [
+      749,
+      211,
+      906,
+      348
+    ],
+    "matteRemoved": false,
+    "width": 157,
+    "height": 137
+  },
+  "coin": {
+    "source": "asset_sheets/ghosted_pixel_ui_icon_atlas.png",
+    "crop": [
+      777,
+      646,
+      834,
+      712
+    ],
+    "matteRemoved": "cream",
+    "width": 61,
+    "height": 70
+  },
+  "crown": {
+    "source": "asset_sheets/ghosted_pixel_ui_asset_sheet.png",
+    "crop": [
+      752,
+      1227,
+      801,
+      1274
+    ],
+    "matteRemoved": true,
+    "width": 51,
+    "height": 43
+  },
+  "trophy": {
+    "source": "asset_sheets/ghosted_pixel_ui_icon_atlas.png",
+    "crop": [
+      944,
+      645,
+      1003,
+      707
+    ],
+    "matteRemoved": "cream",
+    "width": 61,
+    "height": 65
+  },
+  "star": {
+    "source": "asset_sheets/ghosted_pixel_ui_asset_sheet.png",
+    "crop": [
+      816,
+      1225,
+      864,
+      1275
+    ],
+    "matteRemoved": true,
+    "width": 45,
+    "height": 45
+  },
+  "burger": {
+    "source": "asset_sheets/ghosted_pixel_reward_shop_asset_sheet.png",
+    "crop": [
+      22,
+      176,
+      239,
+      305
+    ],
+    "matteRemoved": true,
+    "width": 217,
+    "height": 131
+  },
+  "popcorn": {
+    "source": "asset_sheets/ghosted_pixel_reward_shop_asset_sheet.png",
+    "crop": [
+      244,
+      176,
+      459,
+      305
+    ],
+    "matteRemoved": true,
+    "width": 216,
+    "height": 125
+  },
+  "gamepad": {
+    "source": "asset_sheets/ghosted_pixel_reward_shop_asset_sheet.png",
+    "crop": [
+      469,
+      178,
+      670,
+      305
+    ],
+    "matteRemoved": true,
+    "width": 205,
+    "height": 126
+  },
+  "shirt": {
+    "source": "asset_sheets/ghosted_pixel_reward_shop_asset_sheet.png",
+    "crop": [
+      682,
+      177,
+      885,
+      305
+    ],
+    "matteRemoved": true,
+    "width": 192,
+    "height": 126
+  },
+  "bed": {
+    "source": "asset_sheets/ghosted_pixel_reward_shop_asset_sheet.png",
+    "crop": [
+      26,
+      356,
+      237,
+      482
+    ],
+    "matteRemoved": true,
+    "width": 213,
+    "height": 121
+  },
+  "coffee": {
+    "source": "asset_sheets/ghosted_pixel_reward_shop_asset_sheet.png",
+    "crop": [
+      252,
+      354,
+      448,
+      482
+    ],
+    "matteRemoved": true,
+    "width": 197,
+    "height": 131
+  },
+  "gift": {
+    "source": "asset_sheets/ghosted_pixel_reward_shop_asset_sheet.png",
+    "crop": [
+      691,
+      530,
+      887,
+      661
+    ],
+    "matteRemoved": true,
+    "width": 198,
+    "height": 124
+  },
+  "map": {
+    "source": "asset_sheets/ghosted_character_and_mascot_sprite_sheet.png",
+    "crop": [
+      700,
+      1300,
+      819,
+      1372
+    ],
+    "matteRemoved": true,
+    "width": 111,
+    "height": 69
+  },
+  "mountain": {
+    "source": "asset_sheets/ghosted_pixel_ui_asset_sheet.png",
+    "crop": [
+      802,
+      961,
+      894,
+      1027
+    ],
+    "matteRemoved": true,
+    "width": 90,
+    "height": 61
+  },
+  "flag": {
+    "source": "asset_sheets/ghosted_pixel_ui_asset_sheet.png",
+    "crop": [
+      879,
+      1226,
+      920,
+      1278
+    ],
+    "matteRemoved": true,
+    "width": 38,
+    "height": 46
+  },
+  "home": {
+    "source": "asset_sheets/ghosted_pixel_ui_asset_sheet.png",
+    "crop": [
+      43,
+      963,
+      111,
+      1025
+    ],
+    "matteRemoved": true,
+    "width": 62,
+    "height": 58
+  },
+  "calendar": {
+    "source": "asset_sheets/ghosted_pixel_ui_asset_sheet.png",
+    "crop": [
+      153,
+      961,
+      219,
+      1027
+    ],
+    "matteRemoved": true,
+    "width": 62,
+    "height": 66
+  },
+  "swords": {
+    "source": "asset_sheets/ghosted_pixel_ui_asset_sheet.png",
+    "crop": [
+      266,
+      961,
+      335,
+      1027
+    ],
+    "matteRemoved": true,
+    "width": 59,
+    "height": 58
+  },
+  "shop": {
+    "source": "asset_sheets/ghosted_pixel_ui_asset_sheet.png",
+    "crop": [
+      586,
+      961,
+      658,
+      1027
+    ],
+    "matteRemoved": true,
+    "width": 61,
+    "height": 58
+  },
+  "settings": {
+    "source": "asset_sheets/ghosted_pixel_ui_icon_atlas.png",
+    "crop": [
+      340,
+      642,
+      400,
+      707
+    ],
+    "matteRemoved": "brown",
+    "width": 63,
+    "height": 63
+  },
+  "bell": {
+    "source": "asset_sheets/ghosted_pixel_ui_icon_atlas.png",
+    "crop": [
+      244,
+      642,
+      299,
+      705
+    ],
+    "matteRemoved": "brown",
+    "width": 58,
+    "height": 66
+  }
+}

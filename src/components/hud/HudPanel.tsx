@@ -36,7 +36,7 @@ interface PanelProps {
 export function HudPanel({ children, style, tone = 'cyan', chamfer = 12, double, fill, padding = space.lg }: PanelProps) {
   const { box, onLayout } = useBox();
   return (
-    <View style={[{ padding }, style]} onLayout={onLayout}>
+    <View style={[{ padding, zIndex: 0 }, style]} onLayout={onLayout}>
       {box ? <HudFrame width={box.w} height={box.h} chamfer={chamfer} tone={tone} double={double} fill={fill} /> : null}
       {children}
     </View>
@@ -85,7 +85,7 @@ export function HudPressable({
         highlight.set(withTiming(0, { duration: motion.base }));
         onPressOut?.(e);
       }}
-      style={[{ padding }, style]}
+      style={[{ padding, zIndex: 0 }, style]}
     >
       {box ? <HudFrame width={box.w} height={box.h} chamfer={chamfer} tone={tone} fill={fill} highlight={highlight} /> : null}
       {children}

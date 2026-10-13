@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Check } from 'lucide-react-native';
+import { Check, ChevronRight } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
@@ -10,13 +10,14 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { colors, fonts, motion, space } from '@/config/theme';
+import { colors, fonts, motion, space, withAlpha } from '@/config/theme';
 import type { Habit } from '@/repo/habits';
 import { FloatUp } from '../fx/FloatUp';
 import { HudFrame } from '../hud/HudFrame';
 import { useBox } from '../hud/HudPanel';
 import { LineIcon } from '../hud/icons';
 import { PressableScale } from '../ui/PressableScale';
+import { ProgressBar } from '../ui/ProgressBar';
 import { Text } from '../ui/Text';
 import { toast } from '../ui/Toast';
 
@@ -32,8 +33,7 @@ interface Props {
 }
 
 /**
- * One habit, one tap. Completing it fills the circle, pulses the border, sweeps
- * a cyan flash across the row and floats the rewards up, then settles.
+ * One habit, one tap. A completed quest stamps green and its earned rewards rise.
  */
 export function HabitRow({ habit, done, onToggle, onOpen, note, showRewards = true }: Props) {
   const reduced = useReducedMotion();
@@ -82,7 +82,7 @@ export function HabitRow({ habit, done, onToggle, onOpen, note, showRewards = tr
           height={box.h}
           chamfer={5}
           tone={done ? 'active' : 'dim'}
-          fill={done ? 'rgba(79, 216, 255, 0.07)' : 'rgba(5, 16, 30, 0.45)'}
+          fill={done ? '#E5F1D1' : colors.panel}
           corners={false}
           highlight={highlight}
         />
@@ -90,14 +90,13 @@ export function HabitRow({ habit, done, onToggle, onOpen, note, showRewards = tr
       <View style={styles.clip} pointerEvents="none">
         <Animated.View style={[styles.flash, flash]}>
           <LinearGradient
-            colors={['rgba(79,216,255,0)', 'rgba(79,216,255,0.32)', 'rgba(79,216,255,0)']}
+            colors={[withAlpha(colors.gold, 0), withAlpha(colors.gold, 0.45), withAlpha(colors.gold, 0)]}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={StyleSheet.absoluteFill}
           />
         </Animated.View>
       </View>
-      <View style={[styles.tick, { backgroundColor: habit.accent }]} />
       <PressableScale
         scaleTo={0.985}
         onPress={() => rowRef.current?.measureInWindow((_x, y) => onOpen(y))}
@@ -105,8 +104,8 @@ export function HabitRow({ habit, done, onToggle, onOpen, note, showRewards = tr
         accessibilityLabel={`${habit.title}. Open Intel`}
         style={styles.body}
       >
-        <View style={styles.icon}>
-          <LineIcon name={habit.icon} size={24} color={colors.cyan} />
+        <View style={[styles.icon, { borderBottomColor: habit.accent }]}>
+          <LineIcon name={habit.icon} size={35} color={colors.success} />
         </View>
         <View style={styles.text}>
           <Text style={styles.name} numberOfLines={2}>
@@ -116,8 +115,13 @@ export function HabitRow({ habit, done, onToggle, onOpen, note, showRewards = tr
             <Text variant="label" style={styles.note} color={note.tone === 'warn' ? colors.textDim : colors.textMuted}>
               {note.text}
             </Text>
-          ) : null}
+          ) : habit.description ? <Text variant="caption" style={styles.description} numberOfLines={1}>{habit.description}</Text> : null}
+          <View style={styles.progressLine}>
+            <View style={styles.progress}><ProgressBar progress={done ? 1 : 0} height={4} color={colors.success} glow={false} /></View>
+            <Text variant="caption" style={styles.reward}>{done ? '1/1' : showRewards ? `+${habit.xpReward} XP · ${habit.coinReward} GC` : '0/1'}</Text>
+          </View>
         </View>
+        <ChevronRight size={16} color={colors.textMuted} />
       </PressableScale>
       <PressableScale
         scaleTo={0.86}
@@ -131,42 +135,45 @@ export function HabitRow({ habit, done, onToggle, onOpen, note, showRewards = tr
       >
         <View style={[styles.circle, done && styles.circleDone]}>
           <Animated.View style={[styles.dot, dot]}>
-            <Check size={16} color={colors.bg} strokeWidth={3} />
+            <Check size={24} color={colors.cream} strokeWidth={3.5} />
           </Animated.View>
         </View>
         <FloatUp nonce={burst} text={`+${habit.xpReward} XP`} offset={-4} />
-        <FloatUp nonce={burst} text={`+${habit.coinReward} ◎`} color={colors.text} offset={14} />
+        <FloatUp nonce={burst} text={`+${habit.coinReward} GC`} color={colors.coin} offset={26} />
       </PressableScale>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', minHeight: 58, paddingRight: space.sm },
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: 94, paddingRight: 4, zIndex: 0 },
   clip: { position: 'absolute', top: 1, bottom: 1, left: 1, right: 1, overflow: 'hidden' },
   flash: { position: 'absolute', top: 0, bottom: 0, width: 120 },
-  tick: { position: 'absolute', left: 0, top: 14, bottom: 14, width: 2, opacity: 0.8 },
-  body: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', paddingLeft: space.md, gap: space.md },
-  icon: { width: 30, alignItems: 'center' },
-  text: { flex: 1, gap: 1, paddingVertical: space.sm },
-  name: { fontFamily: fonts.bodyMedium, fontSize: 16.5, lineHeight: 22, color: colors.text },
-  note: { fontSize: 9.5, letterSpacing: 1.4 },
+  body: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', paddingLeft: space.md, gap: space.sm },
+  icon: { width: 44, height: 50, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.lineStrong, borderBottomWidth: 4, backgroundColor: colors.surfaceHigh },
+  text: { flex: 1, minWidth: 0, gap: 3, paddingVertical: space.md },
+  name: { fontFamily: fonts.bodySemi, fontSize: 16, lineHeight: 20, color: colors.text },
+  note: { fontSize: 9, letterSpacing: 0.25 },
+  description: { fontSize: 11, lineHeight: 14 },
+  progressLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  progress: { flex: 1 },
+  reward: { fontSize: 10, lineHeight: 13 },
   checkHit: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
   circle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1.6,
-    borderColor: colors.cyanBright,
+    width: 36,
+    height: 36,
+    borderWidth: 2,
+    borderBottomWidth: 4,
+    borderColor: colors.wood,
+    backgroundColor: colors.cream,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  circleDone: { borderColor: colors.cyan },
+  circleDone: { borderColor: colors.forest },
   dot: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.cyan,
+    width: 30,
+    height: 30,
+    backgroundColor: colors.success,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -8,7 +8,7 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Defs, G, Line, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { colors, fonts } from '@/config/theme';
 import type { SeriesPoint } from '@/domain/stats';
 import { Text } from '../ui/Text';
@@ -91,16 +91,16 @@ export function LineChart({ points, color = colors.cyan, height = 200 }: { point
           </Defs>
           {TICKS.map((v) => (
             <G key={v}>
-              <Line x1={PAD.left} x2={width - PAD.right} y1={y(v)} y2={y(v)} stroke={colors.cyan} strokeOpacity={v === 0 ? 0.35 : 0.1} />
+              <Line x1={PAD.left} x2={width - PAD.right} y1={y(v)} y2={y(v)} stroke={colors.lineStrong} strokeDasharray={v === 0 ? undefined : '3 3'} />
               <SvgText x={PAD.left - 6} y={y(v) + 4} fill={colors.textMuted} fontSize={10} fontFamily={fonts.bodyMedium} textAnchor="end">
-                {String(v * 100)}
+                {`${v * 100}%`}
               </SvgText>
             </G>
           ))}
           {points.map((p, i) =>
             i % labelEvery === 0 || i === points.length - 1 ? (
               <G key={p.key}>
-                <Line x1={x(i)} x2={x(i)} y1={PAD.top} y2={y(0)} stroke={colors.cyan} strokeOpacity={0.06} />
+                <Line x1={x(i)} x2={x(i)} y1={PAD.top} y2={y(0)} stroke={colors.line} strokeDasharray="3 3" />
                 <SvgText x={x(i)} y={height - 7} fill={colors.textMuted} fontSize={10} fontFamily={fonts.bodyMedium} textAnchor={i === points.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'}>
                   {p.label.toUpperCase()}
                 </SvgText>
@@ -129,7 +129,7 @@ export function LineChart({ points, color = colors.cyan, height = 200 }: { point
           ) : null}
           <AnimatedG animatedProps={fadeProps}>
             {runs.flat().map((pt) => (
-              <Circle key={pt.i} cx={x(pt.i)} cy={y(pt.v)} r={2.4} fill={colors.cyanBright} />
+              <Rect key={pt.i} x={x(pt.i) - 2.5} y={y(pt.v) - 2.5} width={5} height={5} fill={colors.cream} stroke={color} strokeWidth={1.5} />
             ))}
           </AnimatedG>
         </Svg>

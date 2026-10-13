@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import { PixelArt } from '../pixel/PixelArt';
 import { colors, space } from '@/config/theme';
 import { Text } from '../ui/Text';
 
@@ -55,13 +55,8 @@ export function StatBlock({ icon: Icon, label, value, unit, children, accessibil
 }
 
 /** The Ghost Coin mark from the concepts: a doubled cyan ring. */
-export function CoinRing({ size = 22, color = colors.cyan }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx="12" cy="12" r="10.5" stroke={color} strokeWidth="1.6" fill="none" />
-      <Circle cx="12" cy="12" r="7" stroke={color} strokeOpacity={0.55} strokeWidth="1.2" fill="none" />
-    </Svg>
-  );
+export function CoinRing({ size = 22 }: { size?: number; color?: string }) {
+  return <PixelArt name="coin" size={size} />;
 }
 
 const styles = StyleSheet.create({

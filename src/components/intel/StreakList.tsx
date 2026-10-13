@@ -21,7 +21,7 @@ export function StreakList({ runs, today, liveEnd }: { runs: StreakRun[]; today:
             </Text>
             <View style={styles.track}>
               <View style={[styles.bar, { width: `${Math.max(10, (run.length / best) * 100)}%` }, live ? styles.live : styles.past]}>
-                <Text style={[styles.count, { color: live ? colors.bg : colors.cyanBright }]}>{run.length}</Text>
+                <Text style={[styles.count, { color: live ? colors.cream : colors.success }]}>{run.length}</Text>
               </View>
             </View>
             <Text variant="caption" style={[styles.date, styles.end]}>
@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
   end: { textAlign: 'right' },
   track: { flex: 1 },
   bar: { height: 24, justifyContent: 'center', paddingHorizontal: 8, minWidth: 30, borderWidth: 1 },
-  live: { backgroundColor: colors.cyan, borderColor: colors.cyanBright },
-  past: { backgroundColor: 'rgba(79, 216, 255, 0.12)', borderColor: colors.lineStrong },
+  live: { backgroundColor: colors.success, borderColor: colors.forest },
+  past: { backgroundColor: colors.surfaceHigh, borderColor: colors.lineStrong },
   count: { fontFamily: fonts.number, fontSize: 13 },
 });

@@ -21,12 +21,12 @@ export function Header({ title, eyebrow, back, right }: Props) {
       {back ? <IconButton icon={ChevronLeft} label="Back" filled onPress={() => router.back()} /> : null}
       <View style={styles.titles}>
         {eyebrow ? (
-          <Text variant="label" color={colors.cyan}>
+          <Text variant="label" color={colors.gold}>
             {eyebrow}
           </Text>
         ) : null}
         {title ? (
-          <Text variant="title" numberOfLines={1} glow style={styles.title}>
+          <Text variant="title" numberOfLines={1} adjustsFontSizeToFit color={colors.cream} style={styles.title}>
             {title}
           </Text>
         ) : null}
@@ -46,6 +46,6 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   titles: { flex: 1, gap: 2 },
-  title: { fontSize: 18, letterSpacing: 3 },
+  title: { fontSize: 18, letterSpacing: 0.3 },
   right: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
 });

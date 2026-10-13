@@ -1,5 +1,6 @@
 import { DailyPanel } from '@/components/daily/DailyPanel';
 import { AppHeader } from '@/components/hud/AppHeader';
+import { WorldScene } from '@/components/pixel/WorldScene';
 import { PlayerCard } from '@/components/player/PlayerCard';
 import { StatsStrip } from '@/components/player/StatsStrip';
 import { Reveal, Screen } from '@/components/ui/Screen';
@@ -12,15 +13,10 @@ export default function PlayerScreen() {
 
   return (
     <Screen header={<AppHeader />}>
-      <Reveal index={0}>
-        <PlayerCard player={player} name={name} />
-      </Reveal>
-      <Reveal index={1}>
-        <StatsStrip />
-      </Reveal>
-      <Reveal index={2}>
-        <DailyPanel date={today} />
-      </Reveal>
+      <Reveal index={0}><PlayerCard player={player} name={name} /></Reveal>
+      <Reveal index={1}><WorldScene variant="home" title="A little better, every day." subtitle="Your next adventure starts with one real step." height={178} /></Reveal>
+      <Reveal index={2}><StatsStrip /></Reveal>
+      <Reveal index={3}><DailyPanel date={today} /></Reveal>
     </Screen>
   );
 }

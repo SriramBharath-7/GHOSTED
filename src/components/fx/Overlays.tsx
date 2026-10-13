@@ -1,4 +1,3 @@
-import { TriangleAlert } from 'lucide-react-native';
 import { type ReactNode, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
@@ -23,15 +22,17 @@ import { HudFrame } from '../hud/HudFrame';
 import { useBox } from '../hud/HudPanel';
 import { CoinRing } from '../hud/StatBlock';
 import { HoloArt } from '../hud/icons';
+import { PixelArt } from '../pixel/PixelArt';
 import { ProgressBar } from '../ui/ProgressBar';
 import { Text } from '../ui/Text';
 import { ParticleBurst } from './ParticleBurst';
 
-/** Shows queued big moments one at a time, as System notifications. Tap to skip. */
+/** Shows queued milestones one at a time in the adventure log. Tap to skip. */
 export function FxHost() {
   const current = useFx((s) => s.queue[0]);
   const dismiss = useFx((s) => s.dismiss);
   const cue = useFx((s) => s.cue);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     if (!current) return;
@@ -58,7 +59,7 @@ export function FxHost() {
 
   if (!current) return null;
   return (
-    <Animated.View key={current.id} entering={FadeIn.duration(180)} exiting={FadeOut.duration(200)} style={styles.root}>
+    <Animated.View key={current.id} entering={reduced ? undefined : FadeIn.duration(180)} exiting={reduced ? undefined : FadeOut.duration(200)} style={styles.root}>
       <Pressable style={styles.fill} onPress={dismiss} accessibilityRole="button" accessibilityLabel="Dismiss">
         <Moment event={current} />
       </Pressable>
@@ -77,16 +78,17 @@ function Moment({ event }: { event: FxEvent }) {
     case 'missionComplete':
       return (
         <SystemWindow>
-          <Text style={styles.big} glow="strong">Mission complete</Text>
-          <HoloArt name={event.icon} size={64} />
+          <PixelArt name="trophy" size={80} />
+          <Text style={styles.big}>Mission complete!</Text>
+          <HoloArt name={event.icon} size={40} />
           <Text variant="heading" align="center">{event.name}</Text>
-          <Text variant="label" align="center" color={colors.textMuted}>Objective achieved</Text>
+          <Text variant="caption" align="center" color={colors.textDim}>Another adventure, conquered.</Text>
         </SystemWindow>
       );
   }
 }
 
-/** The System window: framed panel with the "! NOTIFICATION" header. */
+/** Parchment celebration window with a timber title bar. */
 function SystemWindow({ children, flash = true }: { children: ReactNode; flash?: boolean }) {
   const reduced = useReducedMotion();
   const { box, onLayout } = useBox();
@@ -95,29 +97,28 @@ function SystemWindow({ children, flash = true }: { children: ReactNode; flash?:
   useEffect(() => {
     if (reduced) return;
     pop.set(withTiming(1, { duration: 260, easing: Easing.out(Easing.back(1.4)) }));
-    if (flash) glow.set(withSequence(withTiming(1, { duration: 160 }), withTiming(0, { duration: 900 })));
+    if (flash) glow.set(withSequence(withTiming(1, { duration: 160 }), withTiming(0, { duration: 420 })));
   }, [flash, glow, pop, reduced]);
   const style = useAnimatedStyle(() => ({ transform: [{ scale: pop.get() }] }));
 
   return (
     <Animated.View style={[styles.window, style]} onLayout={onLayout}>
-      {box ? <HudFrame width={box.w} height={box.h} chamfer={14} tone="active" fill={colors.bgRaised} double highlight={glow} /> : null}
+      {box ? <HudFrame width={box.w} height={box.h} chamfer={14} tone="cyan" fill={colors.panel} double highlight={glow} /> : null}
       <View style={styles.header}>
-        <View style={styles.alert}>
-          <TriangleAlert size={16} color={colors.cyanBright} strokeWidth={2} />
-        </View>
+        <PixelArt name="star" size={22} />
         <Text variant="title" style={styles.headerText}>
-          Notification
+          Adventure log
         </Text>
       </View>
-      <View style={styles.rule} />
       {children}
-      <ParticleBurst burstKey={reduced ? 0 : 1} color={colors.cyan} count={26} radius={170} duration={1200} />
+      <Text variant="caption" color={colors.textMuted}>Tap to continue</Text>
+      <ParticleBurst burstKey={reduced ? 0 : 1} color={colors.success} count={22} radius={150} duration={900} />
     </Animated.View>
   );
 }
 
 function LevelUp({ level, rankId }: { level: number; rankId: string | null }) {
+  const reduced = useReducedMotion();
   const progress = levelInfo(useGame.getState().player.totalXp).progress;
   // The bar fills to the top, then resets into the new level.
   const [bar, setBar] = useState(1);
@@ -129,12 +130,13 @@ function LevelUp({ level, rankId }: { level: number; rankId: string | null }) {
   const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
   return (
     <SystemWindow>
-      <Text style={styles.big} glow="strong">
-        {rank ? 'Rank up' : 'Level up'}
+      <PixelArt name="crown" size={80} />
+      <Text style={styles.big}>
+        {rank ? 'Rank up!' : 'Level up!'}
       </Text>
       <Text variant="body" color={colors.textDim} align="center">
         You have reached{' '}
-        <Text variant="bodyStrong" color={colors.cyanBright}>
+        <Text variant="bodyStrong" color={colors.success}>
           Level {level}
         </Text>
         .
@@ -143,12 +145,12 @@ function LevelUp({ level, rankId }: { level: number; rankId: string | null }) {
         <ProgressBar progress={bar} height={8} />
       </View>
       {rank ? (
-        <Animated.View entering={FadeIn.delay(400)} style={styles.center}>
+        <Animated.View entering={reduced ? undefined : FadeIn.delay(400)} style={styles.center}>
           <Text variant="label">New title · {ROMAN[rankIndex]}</Text>
-          <Text variant="title" glow color={colors.cyanBright}>
+          <Text variant="title" color={colors.success} align="center">
             {rank.name}
           </Text>
-          <Text variant="caption">{rank.motto}</Text>
+          <Text variant="caption" align="center">{rank.motto}</Text>
         </Animated.View>
       ) : null}
     </SystemWindow>
@@ -156,26 +158,29 @@ function LevelUp({ level, rankId }: { level: number; rankId: string | null }) {
 }
 
 function PerfectDay({ done, xp, coins }: { done: number; xp: number; coins: number }) {
+  const reduced = useReducedMotion();
   return (
     <SystemWindow>
-      <Text style={styles.big} glow="strong">
-        Day complete
+      <PixelArt name="ghostCelebrate" size={88} />
+      <Text style={styles.big}>
+        Perfect day!
       </Text>
-      <Text style={styles.count} glow>
+      <Text style={styles.count}>
         {done} / {done}
       </Text>
-      <Animated.View entering={FadeIn.delay(250)} style={styles.earned}>
-        <Text variant="number" color={colors.cyanBright} glow>
+      <Text variant="caption">Every quest complete. That’s a day well spent.</Text>
+      <Animated.View entering={reduced ? undefined : FadeIn.delay(250)} style={styles.earned}>
+        <Text variant="number" color={colors.success}>
           +{xp} XP
         </Text>
         <View style={styles.coin}>
           <CoinRing size={20} />
-          <Text variant="number">+{coins}</Text>
+          <Text variant="number" color={colors.coin}>+{coins}</Text>
         </View>
       </Animated.View>
-      <Animated.View entering={FadeIn.delay(700)}>
-        <Text variant="label" align="center" color={colors.textMuted} style={styles.motto}>
-          Disappear. Build. Return.
+      <Animated.View entering={reduced ? undefined : FadeIn.delay(700)}>
+        <Text variant="caption" align="center" color={colors.textDim} style={styles.motto}>
+          A better you. Every day.
         </Text>
       </Animated.View>
     </SystemWindow>
@@ -200,8 +205,8 @@ function Acquired({ name, icon, cost }: { name: string; icon: string; cost?: num
   }));
   return (
     <SystemWindow>
-      <Text style={styles.big} glow="strong">
-        Item acquired
+      <Text style={styles.big}>
+        Item acquired!
       </Text>
       <Animated.View style={art}>
         <HoloArt name={icon} size={72} />
@@ -212,7 +217,7 @@ function Acquired({ name, icon, cost }: { name: string; icon: string; cost?: num
       {cost !== undefined ? (
         <View style={styles.coin}>
           <CoinRing size={18} />
-          <Text variant="bodyStrong" color={colors.cyanBright}>−{cost.toLocaleString('en-US')} GC</Text>
+          <Text variant="bodyStrong" color={colors.coin}>−{cost.toLocaleString('en-US')} GC</Text>
         </View>
       ) : null}
       <Text variant="label" align="center" color={colors.textMuted}>
@@ -225,13 +230,11 @@ function Acquired({ name, icon, cost }: { name: string; icon: string; cost?: num
 const styles = StyleSheet.create({
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.scrim, zIndex: 50 },
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
-  window: { width: '100%', maxWidth: 380, alignItems: 'center', gap: space.md, padding: space.xl },
-  header: { flexDirection: 'row', alignItems: 'center', gap: space.md, alignSelf: 'stretch' },
-  alert: { width: 30, height: 30, borderWidth: 1, borderColor: colors.cyan, alignItems: 'center', justifyContent: 'center' },
-  headerText: { fontSize: 15, letterSpacing: 5 },
-  rule: { alignSelf: 'stretch', height: StyleSheet.hairlineWidth, backgroundColor: colors.lineStrong },
-  big: { fontFamily: fonts.wordmark, fontSize: 30, lineHeight: 38, letterSpacing: 3, color: colors.cyanBright, textTransform: 'uppercase', textAlign: 'center' },
-  count: { fontFamily: fonts.numberHeavy, fontSize: 48, lineHeight: 56, color: colors.text },
+  window: { width: '100%', maxWidth: 380, alignItems: 'center', gap: space.md, padding: space.xl, zIndex: 0 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, alignSelf: 'stretch', padding: space.sm, backgroundColor: colors.wood, borderBottomWidth: 3, borderBottomColor: colors.gold },
+  headerText: { fontSize: 11, letterSpacing: 0, color: colors.cream },
+  big: { fontFamily: fonts.display, fontSize: 24, lineHeight: 32, color: colors.success, textTransform: 'uppercase', textAlign: 'center' },
+  count: { fontFamily: fonts.numberHeavy, fontSize: 40, lineHeight: 46, color: colors.text },
   bar: { alignSelf: 'stretch' },
   center: { alignItems: 'center', gap: space.xs },
   earned: { flexDirection: 'row', gap: space.xl, alignItems: 'center' },
