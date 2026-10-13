@@ -1,4 +1,5 @@
-# Checks the app, then builds an installable Android APK (artifact "GHOSTED-apk").
+# Checks the app, then builds an installable Android APK (artifact "GHOSTED-apk")
+# for every pushed branch, so any branch can be tried on a phone.
 # Pushing a tag like v0.1.0 also attaches GHOSTED.apk to a GitHub Release.
 # A tag containing "-test" (v0.0.0-test.1) makes a draft release instead, which
 # only maintainers can see: a safe way to try the release path.
@@ -14,11 +15,11 @@
 # erases on-device data: export both backups before that switch.
 name: Android APK
 
+# No pull_request trigger: a PR's commits are already built by their branch push.
 on:
   push:
-    branches: [main]
+    branches: ['**']
     tags: ['v*']
-  pull_request:
   workflow_dispatch:
 
 concurrency:
