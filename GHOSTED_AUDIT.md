@@ -14,7 +14,9 @@
 > - **Historical XP/coin exploit closed.** Only today mints XP/coins/Perfect Day bonus. A past day can only regain what it earned on its own day, so toggling history always ends where it started. Ranks count only Perfect Days that kept their earned bonus (`getEarnedPerfectDayCount`).
 > - **Writes serialized.** Every repository write (settings, rewards, missions, vault start date) goes through the `transaction()` queue. `openDatabase` is single-flight and retryable.
 > - **Player score** is computed once per commit and keeps archived habits' real history.
-> - **Tests:** 52 → 88 (13 suites), passing in IST, UTC and US Pacific time zones. **CI:** `.github/workflows/android-apk.yml` builds `GHOSTED.apk`.
+> - **Tests:** 52 → 90 (13 suites), passing in IST, UTC and US Pacific time zones. **CI:** `.github/workflows/android-apk.yml` builds `GHOSTED.apk` for every pushed branch (first GitHub run green on 2026-10-13).
+> - **Old backups:** restoring a v1/v2 backup replays the data steps it predates (`DATA_STEPS`), so emoji icons and seed accents end up exactly as an on-device migration would leave them.
+> - **Dependencies:** Expo SDK 57 packages at their expected patch versions; `expo-doctor` 21/21.
 > - Current architecture map for the visual redesign: `PIXEL_HANDOFF.md`.
 
 **Evidence labels used below**

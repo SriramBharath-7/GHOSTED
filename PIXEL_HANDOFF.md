@@ -91,9 +91,10 @@ npm run check:backup   # needs android/: npx expo prebuild --platform android --
 
 ## Android build
 
-- CI: `.github/workflows/android-apk.yml` runs the checks, builds `GHOSTED.apk` (artifact
-  `GHOSTED-apk`), and attaches it to a GitHub Release on `v*` tags. Signing secrets are listed
-  at the top of the workflow. Without them the APK uses the debug key.
+- CI: `.github/workflows/android-apk.yml` runs the checks and builds `GHOSTED.apk` (artifact
+  `GHOSTED-apk`) for **every pushed branch**, so pushing your branch gives a phone-installable
+  build. `v*` tags also attach it to a GitHub Release. Signing: README → "Release signing";
+  without those secrets the APK uses the debug key.
 - Local: `npx expo prebuild --platform android --no-install`, then in `android/`:
   `./gradlew assembleRelease` → `android/app/build/outputs/apk/release/app-release.apk`.
   `android/` is generated (gitignored). Configure native behavior in `app.json` or config plugins only.
