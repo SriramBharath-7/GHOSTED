@@ -1,5 +1,7 @@
 # Checks the app, then builds an installable Android APK (artifact "GHOSTED-apk").
 # Pushing a tag like v0.1.0 also attaches GHOSTED.apk to a GitHub Release.
+# A tag containing "-test" (v0.0.0-test.1) makes a draft release instead, which
+# only maintainers can see: a safe way to try the release path.
 #
 # Signing: without secrets the APK is signed with the standard debug key from
 # the Expo template (installable, updates install over each other, not for Play).
@@ -121,9 +123,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          draft=()
+          if [[ "$GITHUB_REF_NAME" == *-test* ]]; then draft=(--draft); fi
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" GHOSTED.apk --clobber --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$GITHUB_REF_NAME" GHOSTED.apk --repo "$GITHUB_REPOSITORY" \
-              --title "GHOSTED $GITHUB_REF_NAME" --generate-notes
+              --title "GHOSTED $GITHUB_REF_NAME" --generate-notes "${draft[@]}"
           fi
