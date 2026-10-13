@@ -6,13 +6,13 @@
 #
 # Signing: without secrets the APK is signed with the standard debug key from
 # the Expo template (installable, updates install over each other, not for Play).
-# For a real release key, add these repository secrets (never commit the keystore):
-#   ANDROID_KEYSTORE_BASE64   base64 of the .jks/.keystore file
+# For a real release key, add these repository secrets (README: "Release signing"):
+#   ANDROID_KEYSTORE_BASE64    base64 of the .jks/.keystore file
 #   ANDROID_KEYSTORE_PASSWORD
 #   ANDROID_KEY_ALIAS
-#   ANDROID_KEY_PASSWORD
-# Switching keys later means uninstalling first (Android refuses the update), which
-# erases on-device data: export both backups before that switch.
+#   ANDROID_KEY_PASSWORD       optional; defaults to the keystore password (PKCS12)
+# Never commit the keystore. Switching keys later means uninstalling first (Android
+# refuses the update), which erases on-device data: export both backups first.
 name: Android APK
 
 # No pull_request trigger: a PR's commits are already built by their branch push.
@@ -77,15 +77,23 @@ jobs:
           # Phones (arm64) plus the x86_64 emulator; drop x86_64 to build faster.
           args=(assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,x86_64)
           if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            # Half-configured secrets must fail, not quietly fall back to the debug key.
+            if [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ]; then
+              echo "::error::ANDROID_KEYSTORE_BASE64 is set but ANDROID_KEYSTORE_PASSWORD or ANDROID_KEY_ALIAS is missing."
+              exit 1
+            fi
             echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            # PKCS12 keystores (keytool's default) use the store password for the key too.
             args+=(
               "-Pandroid.injected.signing.store.file=$RUNNER_TEMP/release.keystore"
               "-Pandroid.injected.signing.store.password=$ANDROID_KEYSTORE_PASSWORD"
               "-Pandroid.injected.signing.key.alias=$ANDROID_KEY_ALIAS"
-              "-Pandroid.injected.signing.key.password=$ANDROID_KEY_PASSWORD"
+              "-Pandroid.injected.signing.key.password=${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
             )
+            echo "SIGNER=release" >> "$GITHUB_ENV"
             echo "Signing with the release key from repository secrets."
           else
+            echo "SIGNER=debug" >> "$GITHUB_ENV"
             echo "::warning::No release keystore secrets: APK is signed with the debug key."
           fi
           ./gradlew "${args[@]}"
@@ -100,7 +108,13 @@ jobs:
           mkdir -p dist
           cp "$apk" dist/GHOSTED.apk
           tools="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
-          "$tools/apksigner" verify --print-certs dist/GHOSTED.apk
+          certs=$("$tools/apksigner" verify --print-certs dist/GHOSTED.apk)
+          echo "$certs"
+          if [ "$SIGNER" = release ] && grep -q "CN=Android Debug" <<< "$certs"; then
+            echo "::error::Release secrets are set but the APK is signed with the debug key."
+            exit 1
+          fi
+          echo "Signed with the $SIGNER key."
           ls -lh dist/GHOSTED.apk
 
       - uses: actions/upload-artifact@v4
