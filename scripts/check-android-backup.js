@@ -5,7 +5,13 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const config = require('../app.json').expo;
 assert.equal(config.android.allowBackup, false);
+assert.ok(config.plugins.includes('./plugins/withPrivateAndroidBackup'), 'Backup plugin missing from app.json');
 const native = path.join(root, 'android/app/src/main');
+// android/ is generated (CNG) and gitignored: validate what prebuild produced.
+if (!fs.existsSync(native)) {
+  console.error('FAIL: no android/ folder. Run `npx expo prebuild --platform android --no-install` first.');
+  process.exit(1);
+}
 const manifest = fs.readFileSync(path.join(native, 'AndroidManifest.xml'), 'utf8');
 assert.match(manifest, /android:allowBackup="false"/);
 assert.match(manifest, /android:fullBackupContent="@xml\/ghosted_backup_rules"/);

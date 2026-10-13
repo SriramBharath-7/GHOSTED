@@ -56,9 +56,13 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "check": "npm run typecheck && npm run lint && npm test",
+    "check:backup": "node scripts/check-android-backup.js"
   },
   "private": true,
+  "engines": {
+    "node": ">=22.13"
+  },
   "jest": {
     "preset": "jest-expo",
     "testMatch": [

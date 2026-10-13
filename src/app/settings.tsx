@@ -11,8 +11,8 @@ import {
   Vibrate,
   Volume2,
 } from 'lucide-react-native';
-import { useCallback, useEffect, useState } from 'react';
-import { AppState, Linking, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Linking, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { Card, SectionTitle } from '@/components/ui/Card';
 import { Header } from '@/components/ui/Header';
@@ -30,34 +30,24 @@ import { seedDemoHistory } from '@/dev/demoSeed';
 import { type BackupFile, BackupError, exportBackup, importBackup, parseBackup, resetAllData } from '@/repo/backup';
 import { pickBackupText, shareBackup } from '@/services/backupFiles';
 import { haptics } from '@/services/haptics';
-import { type PermissionState, getPermission, remindersSupported, requestPermission } from '@/services/notifications';
 import { clearVaultCredentials } from '@/services/vaultAuth';
 import { useGame } from '@/state/game';
+import { remindersActive } from '@/state/selectors';
 
 export default function SettingsScreen() {
   const settings = useGame((s) => s.settings);
   const today = useGame((s) => s.today);
   const updateSettings = useGame((s) => s.updateSettings);
+  const setRemindersEnabled = useGame((s) => s.setRemindersEnabled);
+  const permission = useGame((s) => s.reminderPermission);
+  const reminders = useGame(remindersActive);
   const commit = useGame((s) => s.commit);
+  const refreshReminders = useGame((s) => s.refreshReminders);
   const [name, setName] = useState(settings.playerName);
-  const [permission, setPermission] = useState<PermissionState>('undetermined');
   const [pending, setPending] = useState<BackupFile | null>(null);
   const [resetText, setResetText] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
-
-  const refreshPermission = useCallback(() => {
-    void getPermission().then(setPermission).catch(() => toast('Could not check notification permission.', 'error'));
-  }, []);
-  useEffect(refreshPermission, [refreshPermission]);
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') return;
-      refreshPermission();
-      void commit({ reminders: true });
-    });
-    return () => subscription.remove();
-  }, [commit, refreshPermission]);
 
   const saveName = () => {
     const trimmed = name.trim().slice(0, 24);
@@ -67,11 +57,8 @@ export default function SettingsScreen() {
 
   const toggleReminders = async (on: boolean) => {
     try {
-      if (on && remindersSupported && !(await requestPermission())) {
-        toast('Notifications are blocked for GHOSTED.', 'error');
-      }
-      await updateSettings({ reminders: on });
-      refreshPermission();
+      const permission = await setRemindersEnabled(on);
+      if (on && permission === 'denied') toast('Notifications are blocked for GHOSTED.', 'error');
     } catch {
       toast('Could not update reminders. Try again.', 'error');
     }
@@ -104,25 +91,37 @@ export default function SettingsScreen() {
     setPending(null);
     try {
       await importBackup(getDb(), file);
-      await commit({ reminders: true });
-      setName(useGame.getState().settings.playerName);
-      haptics.success();
-      toast('Backup restored');
     } catch {
       haptics.error();
       toast('Import failed. Nothing was changed.', 'error');
+      return;
     }
+    await reload();
+    haptics.success();
+    toast('Backup restored');
   };
 
   const doReset = async () => {
-    await resetAllData(getDb(), today);
-    await clearVaultCredentials();
-    await commit({ reminders: true });
+    try {
+      await resetAllData(getDb(), today);
+      await clearVaultCredentials();
+    } catch {
+      haptics.error();
+      toast('Could not finish the reset. Try again.', 'error');
+      return;
+    }
+    await reload();
     setResetText('');
     setResetOpen(false);
-    setName(useGame.getState().settings.playerName);
     toast('All data erased');
     router.dismissAll();
+  };
+
+  /** After data is replaced: reload the store and re-check the restored reminder switch. */
+  const reload = async () => {
+    await commit();
+    await refreshReminders();
+    setName(useGame.getState().settings.playerName);
   };
 
   const version = Constants.expoConfig?.version ?? '1.0.0';
@@ -146,7 +145,14 @@ export default function SettingsScreen() {
 
       <SectionTitle title="Reminders" />
       <Card style={styles.card}>
-        <ToggleRow icon={Bell} title="Habit reminders" subtitle="Set times per habit in the habit editor" value={settings.reminders} onChange={(v) => void toggleReminders(v)} />
+        <ToggleRow
+          icon={Bell}
+          title="Habit reminders"
+          subtitle="Set times per habit in the habit editor"
+          value={reminders}
+          disabled={permission === 'unsupported'}
+          onChange={(v) => void toggleReminders(v)}
+        />
         {permission === 'unsupported' ? (
           <View style={styles.notice}>
             <Text variant="caption" color={colors.textMuted}>
@@ -162,7 +168,7 @@ export default function SettingsScreen() {
             <Button label="Allow notifications" kind="secondary" compact onPress={() => void toggleReminders(true)} />
           </View>
         ) : null}
-        {settings.reminders && permission === 'denied' ? (
+        {permission === 'denied' ? (
           <View style={styles.notice}>
             <Text variant="caption" color={colors.warning}>
               Notifications are turned off for GHOSTED, so reminders can’t appear.
@@ -222,9 +228,13 @@ export default function SettingsScreen() {
         onCancel={() => setDemoOpen(false)}
         onConfirm={async () => {
           setDemoOpen(false);
-          await seedDemoHistory(getDb(), today);
-          await commit();
-          toast('Demo history loaded');
+          try {
+            await seedDemoHistory(getDb(), today);
+            await commit();
+            toast('Demo history loaded');
+          } catch {
+            toast('Could not load demo history.', 'error');
+          }
         }}
       />
     </Screen>

@@ -20,8 +20,9 @@ export interface Db {
 let queue: Promise<unknown> = Promise.resolve();
 
 /**
- * Runs `task` inside a transaction, one at a time. The queue matters: a
- * double-tap must not interleave two writes inside one transaction.
+ * Runs `task` inside a transaction, one at a time. Every repository write goes
+ * through here: expo-sqlite transactions are not exclusive, so a write made
+ * outside the queue could land inside (and roll back with) someone else's.
  * Never call `transaction` from inside another transaction (it would wait forever).
  */
 export function transaction<T>(db: Db, task: () => Promise<T>): Promise<T> {

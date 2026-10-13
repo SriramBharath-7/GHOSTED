@@ -6,7 +6,7 @@ import { TOUCH, colors, fonts, space } from '@/config/theme';
 import { formatClock } from '@/domain/dates';
 import { remindersSupported } from '@/services/notifications';
 import { useGame } from '@/state/game';
-import { completedSet, dueOn } from '@/state/selectors';
+import { completedSet, dueOn, remindersActive } from '@/state/selectors';
 import { Sheet } from '../ui/Sheet';
 import { Text } from '../ui/Text';
 import { GhostAvatar } from './GhostAvatar';
@@ -32,6 +32,7 @@ export function AppHeader({ ghost, back, controls = true, right }: Props) {
   const habits = useGame((s) => s.habits);
   const recent = useGame((s) => s.recent);
   const today = useGame((s) => s.today);
+  const remindersOn = useGame(remindersActive);
   const [open, setOpen] = useState(false);
   const due = dueOn(habits, today);
   const pending = due.filter((h) => !completedSet(recent, h.id).has(today));
@@ -81,7 +82,7 @@ export function AppHeader({ ghost, back, controls = true, right }: Props) {
                   {habit.title}
                 </Text>
                 <Text variant="label" color={done ? colors.cyan : colors.textMuted}>
-                  {done ? 'Done' : habit.reminderEnabled && habit.reminderTime ? formatClock(habit.reminderTime) : 'Open'}
+                  {done ? 'Done' : remindersOn && habit.reminderEnabled && habit.reminderTime ? formatClock(habit.reminderTime) : 'Open'}
                 </Text>
               </View>
             );

@@ -256,7 +256,7 @@ function VaultSettings({
           />
         ) : null}
         <Row icon={KeyRound} title="Change PIN" onPress={onChangePin} />
-        <Row icon={Download} title="Export private backup" subtitle="Kept separate from the main backup" onPress={() => void doExport()} />
+        <Row icon={Download} title="Export private backup" subtitle="Separate from the main backup. Not encrypted: keep it private." onPress={() => void doExport()} />
         <Row icon={Upload} title="Import private backup" onPress={() => void doPick()} />
       </Card>
       <ConfirmSheet

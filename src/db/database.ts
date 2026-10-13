@@ -5,10 +5,21 @@ import { type Db, transaction } from './db';
 import { migrate } from './migrations';
 
 let instance: Db | null = null;
+let opening: Promise<Db> | null = null;
 
-/** Opens, migrates and (first launch only) seeds the on-device database. */
-export async function openDatabase(today: DateKey): Promise<Db> {
-  if (instance) return instance;
+/**
+ * Opens, migrates and (first launch only) seeds the on-device database.
+ * Concurrent callers share one open; a failed open can be retried.
+ */
+export function openDatabase(today: DateKey): Promise<Db> {
+  opening ??= open(today).catch((error: unknown) => {
+    opening = null;
+    throw error;
+  });
+  return opening;
+}
+
+async function open(today: DateKey): Promise<Db> {
   const raw = await SQLite.openDatabaseAsync('ghosted.db');
   await raw.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   const db: Db = {
@@ -20,8 +31,13 @@ export async function openDatabase(today: DateKey): Promise<Db> {
       raw.getAllAsync<T>(source, params),
     withTransactionAsync: (task) => raw.withTransactionAsync(task),
   };
-  await migrate(db);
-  await transaction(db, () => seedIfEmpty(db, today));
+  try {
+    await migrate(db);
+    await transaction(db, () => seedIfEmpty(db, today));
+  } catch (error) {
+    await raw.closeAsync().catch(() => undefined);
+    throw error;
+  }
   instance = db;
   return db;
 }

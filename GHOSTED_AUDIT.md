@@ -7,6 +7,16 @@
 | Purpose | Handoff to the next coding agent (Astra) |
 | Source changes made | **None.** No file in the project was edited, moved, committed or pushed. |
 
+> ## UPDATE 2026-10-13: core hardening (overrides the findings below where they differ)
+> - **Folder split resolved.** Everything is in `D:\New folder\GHOSTED`, committed as `3b66e8a Baseline working GHOSTED app`, remote `origin` = `github.com/SriramBharath-7/GHOSTED`. Hardening is on branch `core-hardening` (uncommitted at time of writing). "READ THIS FIRST" below is history.
+> - **P1 #3 fixed (reminders on fresh install).** The store owns reminder policy: asks once at boot, re-checks on resume, turns the switch off when permission is denied/revoked, and the UI shows `remindersActive` (switch ON *and* permission granted). Sync calls are queued so a later "off" always wins. `src/state/game.ts`, `src/services/notifications.ts`, tests in `reminders.test.ts`, `notifications.test.ts`.
+> - **P1 #8 fixed (Android backup).** `android.allowBackup: false` plus `plugins/withPrivateAndroidBackup.js` (full-backup + data-extraction rules excluding every domain). `npm run check:backup` validates the generated manifest; CI runs it after prebuild.
+> - **Historical XP/coin exploit closed.** Only today mints XP/coins/Perfect Day bonus. A past day can only regain what it earned on its own day, so toggling history always ends where it started. Ranks count only Perfect Days that kept their earned bonus (`getEarnedPerfectDayCount`).
+> - **Writes serialized.** Every repository write (settings, rewards, missions, vault start date) goes through the `transaction()` queue. `openDatabase` is single-flight and retryable.
+> - **Player score** is computed once per commit and keeps archived habits' real history.
+> - **Tests:** 52 → 88 (13 suites), passing in IST, UTC and US Pacific time zones. **CI:** `.github/workflows/android-apk.yml` builds `GHOSTED.apk`.
+> - Current architecture map for the visual redesign: `PIXEL_HANDOFF.md`.
+
 **Evidence labels used below**
 
 - **[run]**: a check executed during this audit.

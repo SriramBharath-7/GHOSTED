@@ -26,8 +26,9 @@ import { WEEKDAYS_SHORT } from '@/domain/dates';
 import { EVERY_DAY, maskIncludes } from '@/domain/schedule';
 import { type Habit, type HabitInput, getHabit } from '@/repo/habits';
 import { createHabit, deleteHabit, habitEarnings, setHabitArchived, updateHabit } from '@/repo/progress';
-import { remindersSupported, requestPermission } from '@/services/notifications';
+import { remindersSupported } from '@/services/notifications';
 import { useGame } from '@/state/game';
+import { remindersActive } from '@/state/selectors';
 import { useLiveQuery } from '@/state/useLiveQuery';
 
 
@@ -63,6 +64,7 @@ export default function HabitEditorScreen() {
 function HabitForm({ id, existing }: { id: number | null; existing: Habit | null }) {
   const today = useGame((s) => s.today);
   const commit = useGame((s) => s.commit);
+  const remindersOn = useGame(remindersActive);
   const [form, setForm] = useState<HabitInput>(() =>
     existing
       ? {
@@ -108,10 +110,17 @@ function HabitForm({ id, existing }: { id: number | null; existing: Habit | null
   };
 
   const enableReminder = async (on: boolean) => {
-    if (on && remindersSupported && !(await requestPermission())) {
-      toast('Notifications are blocked. Allow them in Android settings to get reminders.', 'error');
-    }
     setForm((f) => ({ ...f, reminderEnabled: on, reminderTime: f.reminderTime ?? '20:30' }));
+    // The switch in Settings is on but the OS hasn't allowed notifications yet: ask now.
+    const state = useGame.getState();
+    if (!on || !state.settings.reminders || remindersActive(state)) return;
+    try {
+      if ((await state.setRemindersEnabled(true)) === 'denied') {
+        toast('Notifications are blocked. Allow them in Android settings to get reminders.', 'error');
+      }
+    } catch {
+      toast('Could not turn on reminders. Try again.', 'error');
+    }
   };
 
   const askDelete = async () => {
@@ -209,6 +218,10 @@ function HabitForm({ id, existing }: { id: number | null; existing: Habit | null
           <Text variant="caption" color={colors.textMuted}>
             Saved now; delivered once you run the installed app (not Expo Go on Android or the web preview).
           </Text>
+        ) : form.reminderEnabled && !remindersOn ? (
+          <Text variant="caption" color={colors.textMuted}>
+            Saved, but habit reminders are off in Settings, so this one won’t be sent.
+          </Text>
         ) : null}
         {form.reminderEnabled ? (
           <TimeField label="Time" value={form.reminderTime ?? '20:30'} onChange={(t) => set('reminderTime', t)} />
@@ -224,10 +237,14 @@ function HabitForm({ id, existing }: { id: number | null; existing: Habit | null
             kind="secondary"
             icon={existing.archived ? ArchiveRestore : Archive}
             onPress={async () => {
-              await setHabitArchived(getDb(), id, !existing.archived, today);
-              await commit({ reminders: true });
-              toast(existing.archived ? 'Habit restored' : 'Archived. History kept.');
-              router.back();
+              try {
+                await setHabitArchived(getDb(), id, !existing.archived, today);
+                await commit({ reminders: true });
+                toast(existing.archived ? 'Habit restored' : 'Archived. History kept.');
+                router.back();
+              } catch {
+                toast('Could not update this habit. Try again.', 'error');
+              }
             }}
           />
           <Button label="Delete habit" kind="ghost" icon={Trash} onPress={() => void askDelete()} />
@@ -244,9 +261,13 @@ function HabitForm({ id, existing }: { id: number | null; existing: Habit | null
         onConfirm={async () => {
           if (!id) return;
           setConfirmDelete(null);
-          await deleteHabit(getDb(), id, today);
-          await commit({ reminders: true });
-          router.dismissAll();
+          try {
+            await deleteHabit(getDb(), id, today);
+            await commit({ reminders: true });
+            router.dismissAll();
+          } catch {
+            toast('Could not delete this habit. Try again.', 'error');
+          }
         }}
       />
     </Screen>

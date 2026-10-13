@@ -3,6 +3,7 @@ import { type DateKey, addDays } from '@/domain/dates';
 import { isScheduled } from '@/domain/schedule';
 import { type HabitHistory, completionRate, currentStreak, missedRun } from '@/domain/stats';
 import { type Habit, timelineOf } from '@/repo/habits';
+import type { PermissionState } from '@/services/notifications';
 
 export function historyOf(habit: Habit, completed: ReadonlySet<DateKey>, today: DateKey): HabitHistory {
   return { timeline: timelineOf(habit), completed, today };
@@ -26,7 +27,16 @@ const EMPTY: ReadonlySet<DateKey> = new Set();
 export const completedSet = (recent: Record<number, ReadonlySet<DateKey>>, id: number) =>
   recent[id] ?? EMPTY;
 
-/** Completion rate over the last 30 days across all visible habits (null without data). */
+/** Whether reminders will actually be delivered: the switch is on and the OS allows them. */
+export function remindersActive(s: { settings: { reminders: boolean }; reminderPermission: PermissionState }): boolean {
+  return s.settings.reminders && s.reminderPermission === 'granted';
+}
+
+/**
+ * Completion rate over the last 30 days (null without data). Pass archived
+ * habits too: their schedule pauses on the archive date, so the days they
+ * really were due still count and archiving never rewrites the past.
+ */
 export function overallScore(
   habits: Habit[],
   recent: Record<number, ReadonlySet<DateKey>>,

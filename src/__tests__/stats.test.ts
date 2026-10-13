@@ -12,6 +12,7 @@ import {
   completionRate,
   currentStreak,
   dayStatus,
+  habitOverview,
   isPerfectDay,
   missedRun,
   monthlyHistory,
@@ -116,6 +117,19 @@ describe('completion rate', () => {
     expect(change.current.rate).toBe(1);
     expect(change.previous.rate).toBeCloseTo(15 / 30);
     expect(change.delta).toBeCloseTo(0.5);
+  });
+});
+
+describe('habit overview (Intel)', () => {
+  it('derives score, all-time rate, streaks and totals from the same scheduled days', () => {
+    // Started Sep 25, missed Sep 28, today still open.
+    const done = ['2026-09-25', '2026-09-26', '2026-09-27', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03'];
+    const overview = habitOverview(history(daily('2026-09-25'), done));
+    expect(overview.score30).toEqual({ done: 8, scheduled: 9, rate: 8 / 9 });
+    expect(overview.allTime).toEqual(overview.score30);
+    expect(overview).toMatchObject({ currentStreak: 5, bestStreak: 5, total: 8 });
+    // Nothing was scheduled in the 30 days before it started: no fake trend.
+    expect(overview.month.delta).toBeNull();
   });
 });
 

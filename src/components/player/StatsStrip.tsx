@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { colors, space } from '@/config/theme';
 import { levelInfo } from '@/domain/progression';
 import { useGame } from '@/state/game';
-import { dayProgress, overallScore } from '@/state/selectors';
+import { dayProgress } from '@/state/selectors';
 import { HudPanel } from '../hud/HudPanel';
 import { StatBlock } from '../hud/StatBlock';
 import { ProgressBar } from '../ui/ProgressBar';
@@ -18,7 +18,7 @@ export function StatsStrip() {
   const today = useGame((s) => s.today);
   const progress = dayProgress(habits, recent, today);
   const todayRate = progress.total ? progress.done / progress.total : 0;
-  const score = overallScore(habits, recent, today);
+  const score = player.score30;
 
   return (
     <HudPanel chamfer={12} padding={space.sm} style={styles.strip}>

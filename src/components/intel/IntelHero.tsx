@@ -6,6 +6,8 @@ import { colors, fonts, space } from '@/config/theme';
 import { formatClock } from '@/domain/dates';
 import { describeMask } from '@/domain/schedule';
 import type { Habit } from '@/repo/habits';
+import { useGame } from '@/state/game';
+import { remindersActive } from '@/state/selectors';
 import { GhostAvatar } from '../hud/GhostAvatar';
 import { HudPanel } from '../hud/HudPanel';
 import { IconBox } from '../hud/IconBox';
@@ -24,6 +26,7 @@ interface Props {
 export function IntelHero({ habit, fromY, onEdit }: Props) {
   const reduced = useReducedMotion();
   const { width } = useWindowDimensions();
+  const remindersOn = useGame(remindersActive);
   const ref = useRef<View>(null);
   const shift = useSharedValue(0);
   const scale = useSharedValue(fromY !== null && !reduced ? 0.94 : 1);
@@ -75,7 +78,7 @@ export function IntelHero({ habit, fromY, onEdit }: Props) {
             <Fact
               icon={AlarmClock}
               label="Reminder"
-              value={habit.reminderEnabled && habit.reminderTime ? formatClock(habit.reminderTime) : 'Off'}
+              value={remindersOn && habit.reminderEnabled && habit.reminderTime ? formatClock(habit.reminderTime) : 'Off'}
             />
           </View>
         </HudPanel>

@@ -61,10 +61,13 @@ export default function RootLayout() {
     if (fontsLoaded && (ready || error)) void SplashScreen.hideAsync();
   }, [fontsLoaded, ready, error]);
 
-  // New day while the app is open or resumed: roll Daily over.
+  // New day while the app is open or resumed: roll Daily over. A resume also
+  // re-checks notification permission (it can change in system settings).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') void useGame.getState().checkDay();
+      if (next !== 'active' || !useGame.getState().ready) return;
+      void useGame.getState().checkDay();
+      void useGame.getState().refreshReminders();
     });
     let timer: ReturnType<typeof setTimeout>;
     const armMidnight = () => {

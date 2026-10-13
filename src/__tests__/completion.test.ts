@@ -1,8 +1,9 @@
 import { PERFECT_DAY_BONUS } from '@/config/game';
 import type { Db } from '@/db/db';
-import { maskFromWeekdays } from '@/domain/schedule';
-import { listHabits } from '@/repo/habits';
-import { getBalances, getPerfectDayCount } from '@/repo/ledger';
+import { isScheduled, maskFromWeekdays } from '@/domain/schedule';
+import { listHabits, timelineOf } from '@/repo/habits';
+import { moved, saveOrder } from '@/repo/order';
+import { getBalances, getEarnedPerfectDayCount, getPerfectDayCount } from '@/repo/ledger';
 import {
   createHabit,
   deleteHabit,
@@ -157,10 +158,12 @@ describe('completing habits', () => {
       await setCompletion(db, habits[0].id, past, true, TODAY);
     }
     expect(await getBalances(db)).toEqual({ xp: 0, coins: 0 });
+    // A corrected Perfect Day shows in analytics but never counts toward rank.
+    expect(await getEarnedPerfectDayCount(db)).toBe(0);
     await expectLedgerMatchesCompletions(db);
   });
 
-  it('preserves previously earned history until an explicit undo reverses its exact awards', async () => {
+  it('an earned past day can be corrected back and forth but always ends where it started', async () => {
     const past = '2026-10-02';
     const db = await seededDb(past);
     const habits = await listHabits(db);
@@ -168,16 +171,28 @@ describe('completing habits', () => {
     const before = await getBalances(db);
     expect(await setCompletion(db, habits[0].id, past, true, TODAY)).toBeNull();
     expect(await getBalances(db)).toEqual(before);
+    // Retuning the reward later must not change what that day paid.
     await updateHabit(db, habits[0].id, { ...habits[0], xpReward: 999, coinReward: 999 }, TODAY);
     const undo = await setCompletion(db, habits[0].id, past, false, TODAY);
     expect(undo).toMatchObject({
       xp: -habits[0].xpReward - PERFECT_DAY_BONUS.xp,
       coins: -habits[0].coinReward - PERFECT_DAY_BONUS.coins,
+      perfectDay: 'lost',
     });
-    const afterUndo = await getBalances(db);
-    await setCompletion(db, habits[0].id, past, true, TODAY);
-    expect(await getBalances(db)).toEqual(afterUndo);
+    expect(await getEarnedPerfectDayCount(db)).toBe(0);
+    const redo = await setCompletion(db, habits[0].id, past, true, TODAY);
+    expect(redo).toMatchObject({
+      xp: habits[0].xpReward + PERFECT_DAY_BONUS.xp,
+      coins: habits[0].coinReward + PERFECT_DAY_BONUS.coins,
+      perfectDay: 'gained',
+    });
+    for (let i = 0; i < 3; i++) {
+      await setCompletion(db, habits[0].id, past, false, TODAY);
+      await setCompletion(db, habits[0].id, past, true, TODAY);
+    }
+    expect(await getBalances(db)).toEqual(before);
     expect(await getPerfectDayCount(db)).toBe(1);
+    expect(await getEarnedPerfectDayCount(db)).toBe(1);
     await expectLedgerMatchesCompletions(db);
   });
 });
@@ -225,6 +240,49 @@ describe('perfect day', () => {
       TODAY,
     );
     expect(await getPerfectDayCount(db)).toBe(0);
+    await expectLedgerMatchesCompletions(db);
+  });
+});
+
+describe('habit lifecycle', () => {
+  it('creates, edits weekdays, reorders, archives, restores and deletes a custom habit', async () => {
+    const db = await seededDb(TODAY);
+    const custom = {
+      title: 'Reading',
+      icon: 'book',
+      description: '',
+      question: 'Did you read 20 pages?',
+      accent: '#4FD8FF',
+      daysMask: 127,
+      xpReward: 10,
+      coinReward: 2,
+      reminderTime: null,
+      reminderEnabled: false,
+    };
+    const id = await createHabit(db, custom, TODAY);
+    const ids = (await listHabits(db)).map((h) => h.id);
+    expect(ids.at(-1)).toBe(id); // new habits go last
+
+    // Mon/Wed/Fri from today on: Sunday Oct 4 is now a rest day, Monday is due.
+    await updateHabit(db, id, { ...custom, title: 'Read', daysMask: maskFromWeekdays([1, 3, 5]) }, TODAY);
+    const edited = await habitByTitle(db, 'Read');
+    expect(isScheduled(timelineOf(edited), TODAY)).toBe(false);
+    expect(isScheduled(timelineOf(edited), '2026-10-05')).toBe(true);
+
+    let order = ids;
+    for (let i = order.length - 1; i > 0; i--) order = moved(order, i, -1);
+    expect(moved(order, 0, -1)).toBe(order); // already at the top
+    await saveOrder(db, 'habits', order);
+    expect((await listHabits(db))[0].id).toBe(id);
+
+    await setHabitArchived(db, id, true, TODAY);
+    expect((await listHabits(db)).map((h) => h.id)).not.toContain(id);
+    expect((await listHabits(db, { includeArchived: true })).map((h) => h.id)).toContain(id);
+    await setHabitArchived(db, id, false, TODAY);
+    expect((await listHabits(db))[0].id).toBe(id);
+
+    await deleteHabit(db, id, TODAY);
+    expect((await listHabits(db, { includeArchived: true })).map((h) => h.id)).not.toContain(id);
     await expectLedgerMatchesCompletions(db);
   });
 });

@@ -57,8 +57,24 @@ export async function getPerfectDayStreak(db: Db, today: DateKey): Promise<numbe
   return streak;
 }
 
+/** Every Perfect Day in history, corrected days included (analytics). */
 export async function getPerfectDayCount(db: Db): Promise<number> {
   const row = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM perfect_days', []);
+  return row?.n ?? 0;
+}
+
+/**
+ * Perfect Days that count toward rank: those still holding the bonus they
+ * earned on the day. Days made perfect by editing history count only in analytics.
+ */
+export async function getEarnedPerfectDayCount(db: Db): Promise<number> {
+  const row = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM (
+       SELECT l.date FROM ledger l JOIN perfect_days p ON p.date = l.date
+       WHERE l.kind IN ('perfect_day', 'perfect_day_undo')
+       GROUP BY l.date HAVING SUM(l.xp) > 0 OR SUM(l.coins) > 0)`,
+    [],
+  );
   return row?.n ?? 0;
 }
 

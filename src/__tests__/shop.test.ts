@@ -75,6 +75,33 @@ describe('inventory', () => {
     expect(await listRedemptions(db)).toHaveLength(1);
   });
 
+  it('a failure mid-purchase or mid-redeem rolls back everything', async () => {
+    const db = await dbWithCoins();
+    const id = await createReward(db, { ...reward, cost: 1, stock: 5 });
+    const coins = (await getBalances(db)).coins;
+    const runAsync = db.runAsync;
+    const failOn = (prefix: string) => {
+      db.runAsync = (source, params) =>
+        source.trim().startsWith(prefix) ? Promise.reject(new Error('disk full')) : runAsync(source, params);
+    };
+
+    failOn('INSERT INTO inventory'); // after the coins were already debited
+    await expect(purchaseReward(db, id)).rejects.toThrow('disk full');
+    db.runAsync = runAsync;
+    expect((await getBalances(db)).coins).toBe(coins);
+    expect(await getReward(db, id)).toMatchObject({ stock: 5 });
+    expect(await listInventory(db)).toEqual([]);
+    expect(await db.getAllAsync('SELECT id FROM purchases', [])).toEqual([]);
+
+    await purchaseReward(db, id);
+    const [item] = await listInventory(db);
+    failOn('INSERT INTO redemptions'); // after the copy was already consumed
+    await expect(redeemItem(db, item.id)).rejects.toThrow('disk full');
+    db.runAsync = runAsync;
+    expect((await listInventory(db))[0].quantity).toBe(1);
+    expect(await listRedemptions(db)).toEqual([]);
+  });
+
   it('redeems one copy at a time and records history', async () => {
     const db = await dbWithCoins();
     const id = await createReward(db, { ...reward, cost: 1 });

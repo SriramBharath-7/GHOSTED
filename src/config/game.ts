@@ -9,7 +9,10 @@ export const LEVEL_CURVE = {
   step: 50,
 };
 
-/** Awarded once per day when every scheduled visible habit is complete. */
+/**
+ * Awarded once per day when every scheduled visible habit is complete.
+ * Keep it above zero: ranks count only the Perfect Days that paid this bonus.
+ */
 export const PERFECT_DAY_BONUS = {
   xp: 50,
   coins: 20,

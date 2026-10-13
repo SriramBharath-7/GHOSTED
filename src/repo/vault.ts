@@ -44,8 +44,10 @@ export function resetRun(db: Db, today: DateKey): Promise<void> {
 }
 
 /** Corrects the start of the run in progress. */
-export async function setCurrentStart(db: Db, startDate: DateKey): Promise<void> {
-  await db.runAsync('UPDATE vault_runs SET start_date = ? WHERE end_date IS NULL', [startDate]);
+export function setCurrentStart(db: Db, startDate: DateKey): Promise<void> {
+  return transaction(db, async () => {
+    await db.runAsync('UPDATE vault_runs SET start_date = ? WHERE end_date IS NULL', [startDate]);
+  });
 }
 
 export function runLength(run: VaultRun, today: DateKey): number {

@@ -1,5 +1,5 @@
 import { DEFAULT_PLAYER_NAME } from '@/config/seed';
-import type { Db } from '@/db/db';
+import { type Db, transaction } from '@/db/db';
 import type { DateKey } from '@/domain/dates';
 
 export interface AppSettings {
@@ -34,13 +34,15 @@ export async function getSettings(db: Db): Promise<AppSettings> {
   return settings;
 }
 
-export async function setSetting<K extends keyof AppSettings>(
+export function setSetting<K extends keyof AppSettings>(
   db: Db,
   key: K,
   value: AppSettings[K],
 ): Promise<void> {
-  await db.runAsync(
-    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-    [key, JSON.stringify(value)],
-  );
+  return transaction(db, async () => {
+    await db.runAsync(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      [key, JSON.stringify(value)],
+    );
+  });
 }

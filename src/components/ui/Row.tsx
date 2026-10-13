@@ -47,9 +47,10 @@ interface ToggleProps {
   value: boolean;
   onChange: (value: boolean) => void;
   tint?: string;
+  disabled?: boolean;
 }
 
-export function ToggleRow({ icon, title, subtitle, value, onChange, tint = colors.cyan }: ToggleProps) {
+export function ToggleRow({ icon, title, subtitle, value, onChange, tint = colors.cyan, disabled }: ToggleProps) {
   return (
     <Row
       icon={icon}
@@ -58,6 +59,7 @@ export function ToggleRow({ icon, title, subtitle, value, onChange, tint = color
       right={
         <Switch
           value={value}
+          disabled={disabled}
           onValueChange={(next) => {
             haptics.tap();
             onChange(next);

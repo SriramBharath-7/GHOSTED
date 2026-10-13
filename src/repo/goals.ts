@@ -1,4 +1,4 @@
-import { type Db, nowIso } from '@/db/db';
+import { type Db, nowIso, transaction } from '@/db/db';
 import type { DateKey } from '@/domain/dates';
 
 export type GoalHorizon = 'short' | 'long';
@@ -79,43 +79,53 @@ const values = (input: GoalInput) => [
   input.notes.trim(),
 ];
 
-export async function createGoal(db: Db, input: GoalInput): Promise<number> {
-  const { lastInsertRowId } = await db.runAsync(
-    `INSERT INTO goals (title, description, horizon, icon, category, start_date, target_date, steps_total,
-       steps_done, progress, notes, sort_order, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM goals), ?)`,
-    [...values(input), nowIso()],
-  );
-  return lastInsertRowId;
+export function createGoal(db: Db, input: GoalInput): Promise<number> {
+  return transaction(db, async () => {
+    const { lastInsertRowId } = await db.runAsync(
+      `INSERT INTO goals (title, description, horizon, icon, category, start_date, target_date, steps_total,
+         steps_done, progress, notes, sort_order, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM goals), ?)`,
+      [...values(input), nowIso()],
+    );
+    return lastInsertRowId;
+  });
 }
 
-export async function updateGoal(db: Db, id: number, input: GoalInput): Promise<void> {
-  await db.runAsync(
-    `UPDATE goals SET title = ?, description = ?, horizon = ?, icon = ?, category = ?, start_date = ?,
-       target_date = ?, steps_total = ?, steps_done = ?, progress = ?, notes = ? WHERE id = ?`,
-    [...values(input), id],
-  );
+export function updateGoal(db: Db, id: number, input: GoalInput): Promise<void> {
+  return transaction(db, async () => {
+    await db.runAsync(
+      `UPDATE goals SET title = ?, description = ?, horizon = ?, icon = ?, category = ?, start_date = ?,
+         target_date = ?, steps_total = ?, steps_done = ?, progress = ?, notes = ? WHERE id = ?`,
+      [...values(input), id],
+    );
+  });
 }
 
-export async function setGoalStatus(db: Db, id: number, status: GoalStatus): Promise<void> {
-  await db.runAsync(
-    `UPDATE goals SET status = ?, completed_at = ?,
-       progress = CASE WHEN ? = 'done' AND progress IS NOT NULL THEN 100 ELSE progress END,
-       steps_done = CASE WHEN ? = 'done' AND steps_total IS NOT NULL THEN steps_total ELSE steps_done END
-     WHERE id = ?`,
-    [status, status === 'done' ? nowIso() : null, status, status, id],
-  );
+export function setGoalStatus(db: Db, id: number, status: GoalStatus): Promise<void> {
+  return transaction(db, async () => {
+    await db.runAsync(
+      `UPDATE goals SET status = ?, completed_at = ?,
+         progress = CASE WHEN ? = 'done' AND progress IS NOT NULL THEN 100 ELSE progress END,
+         steps_done = CASE WHEN ? = 'done' AND steps_total IS NOT NULL THEN steps_total ELSE steps_done END
+       WHERE id = ?`,
+      [status, status === 'done' ? nowIso() : null, status, status, id],
+    );
+  });
 }
 
 /** One step forward (or +10% without steps), capped at done. */
-export async function advanceGoal(db: Db, goal: Goal): Promise<void> {
-  if (goal.stepsTotal) {
-    await db.runAsync('UPDATE goals SET steps_done = MIN(steps_done + 1, steps_total) WHERE id = ?', [goal.id]);
-  } else if (goal.progress !== null) {
-    await db.runAsync('UPDATE goals SET progress = MIN(progress + 10, 100) WHERE id = ?', [goal.id]);
-  }
+export function advanceGoal(db: Db, goal: Goal): Promise<void> {
+  return transaction(db, async () => {
+    if (goal.stepsTotal) {
+      await db.runAsync('UPDATE goals SET steps_done = MIN(steps_done + 1, steps_total) WHERE id = ?', [goal.id]);
+    } else if (goal.progress !== null) {
+      await db.runAsync('UPDATE goals SET progress = MIN(progress + 10, 100) WHERE id = ?', [goal.id]);
+    }
+  });
 }
 
-export async function deleteGoal(db: Db, id: number): Promise<void> {
-  await db.runAsync('DELETE FROM goals WHERE id = ?', [id]);
+export function deleteGoal(db: Db, id: number): Promise<void> {
+  return transaction(db, async () => {
+    await db.runAsync('DELETE FROM goals WHERE id = ?', [id]);
+  });
 }

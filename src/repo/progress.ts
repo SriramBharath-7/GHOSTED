@@ -18,6 +18,11 @@ import { addLedger } from './ledger';
  * Commands that move XP/coins. Invariant kept by every function here:
  * SUM(ledger habit entries) == SUM(completions.xp_awarded / coins_awarded),
  * and perfect_days matches what completions say.
+ *
+ * Reward rule: only today mints rewards. A past day can only get back what it
+ * earned on its own day (if a correction had undone it), so editing history
+ * never creates XP, coins or Perfect Day bonuses, and toggling a past day back
+ * and forth always ends where it started.
  */
 
 export interface CompletionChange {
@@ -50,10 +55,28 @@ export async function completionDates(db: Db, habitId: number): Promise<Set<Date
 }
 
 /**
- * Brings Perfect Day analytics in line with completions. New bonuses may only
- * be granted on rewardDate; history corrections and deletion pass no date.
- * Existing bonuses are reversed exactly when a day stops being perfect.
- * Caller owns the transaction.
+ * What a habit (or the Perfect Day bonus, habitId null) paid on `date` when it
+ * was earned on that day: the latest non-zero grant in the ledger, else zero.
+ */
+async function earnedOnDay(
+  db: Db,
+  kind: 'habit' | 'perfect_day',
+  date: DateKey,
+  habitId: number | null,
+): Promise<{ xp: number; coins: number }> {
+  const row = await db.getFirstAsync<{ xp: number; coins: number }>(
+    `SELECT xp, coins FROM ledger WHERE kind = ? AND date = ? AND habit_id IS ? AND (xp <> 0 OR coins <> 0)
+     ORDER BY id DESC LIMIT 1`,
+    [kind, date, habitId],
+  );
+  return { xp: row?.xp ?? 0, coins: row?.coins ?? 0 };
+}
+
+/**
+ * Brings Perfect Day analytics in line with completions. A day that becomes
+ * perfect pays the current bonus only on rewardDate (today); any other day
+ * gets back only what it earned on its own day. Bonuses are reversed exactly
+ * when a day stops being perfect. Caller owns the transaction.
  */
 export async function resyncPerfectDays(
   db: Db,
@@ -85,8 +108,8 @@ export async function resyncPerfectDays(
       date,
     );
     if (perfect && !existing.has(date)) {
-      const xp = date === rewardDate ? PERFECT_DAY_BONUS.xp : 0;
-      const coins = date === rewardDate ? PERFECT_DAY_BONUS.coins : 0;
+      const { xp, coins } =
+        date === rewardDate ? PERFECT_DAY_BONUS : await earnedOnDay(db, 'perfect_day', date, null);
       await db.runAsync('INSERT INTO perfect_days (date, created_at) VALUES (?, ?)', [
         date,
         nowIso(),
@@ -179,10 +202,11 @@ export function setCompletion(
       throw new Error('That day is not on this habit’s schedule.');
     }
 
-    // Past edits correct analytics only. Keep awards on the row so undo still
-    // reverses existing (including pre-update) completions exactly.
-    const xp = date === today ? habit.xpReward : 0;
-    const coins = date === today ? habit.coinReward : 0;
+    // The row stores what it paid, so undo always reverses exactly that.
+    const { xp, coins } =
+      date === today
+        ? { xp: habit.xpReward, coins: habit.coinReward }
+        : await earnedOnDay(db, 'habit', date, habitId);
     const insert = await db.runAsync(
       `INSERT INTO completions (habit_id, date, xp_awarded, coins_awarded, created_at)
        VALUES (?, ?, ?, ?, ?) ON CONFLICT(habit_id, date) DO NOTHING`,
@@ -259,7 +283,8 @@ export function deleteHabit(db: Db, id: number, today: DateKey): Promise<void> {
     await db.runAsync('DELETE FROM completions WHERE habit_id = ?', [id]);
     await db.runAsync('DELETE FROM habit_schedules WHERE habit_id = ?', [id]);
     await db.runAsync('DELETE FROM habits WHERE id = ?', [id]);
-    await resyncPerfectDays(db, habit.startDate, today);
+    // Today behaves like archiving; past days can only regain what they earned.
+    await resyncPerfectDays(db, habit.startDate, today, today);
   });
 }
 

@@ -2,13 +2,16 @@ import { MIGRATIONS, SCHEMA_VERSION, migrate } from '@/db/migrations';
 import {
   advanceGoal,
   createGoal,
+  deleteGoal,
   getGoal,
   goalProgress,
   isUpcoming,
   listGoals,
   setGoalStatus,
+  updateGoal,
 } from '@/repo/goals';
 import { listHabits } from '@/repo/habits';
+import { getBalances } from '@/repo/ledger';
 import { createTestDb, seededDb } from './helpers/testDb';
 
 const TODAY = '2026-10-04';
@@ -87,6 +90,20 @@ describe('missions', () => {
     expect(goal?.stepsDone).toBe(5);
     await setGoalStatus(db, id, 'done');
     expect(goalProgress((await getGoal(db, id))!)).toBe(1);
+  });
+
+  it('edits, completes and deletes a mission without touching XP, coins or habits', async () => {
+    const db = await seededDb(TODAY);
+    const id = await createGoal(db, { ...base, horizon: 'long' });
+    await updateGoal(db, id, { ...base, title: 'Ship GHOSTED', horizon: 'long', stepsDone: 4 });
+    expect(await getGoal(db, id)).toMatchObject({ title: 'Ship GHOSTED', horizon: 'long', stepsDone: 4 });
+    await setGoalStatus(db, id, 'done');
+    expect(await getGoal(db, id)).toMatchObject({ status: 'done', stepsDone: 5 });
+    // Missions are separate from Daily Discipline: no rewards, no habit changes.
+    expect(await getBalances(db)).toEqual({ xp: 0, coins: 0 });
+    expect(await listHabits(db)).toHaveLength(5);
+    await deleteGoal(db, id);
+    expect(await getGoal(db, id)).toBeNull();
   });
 
   it('lists missions that start later as upcoming', async () => {

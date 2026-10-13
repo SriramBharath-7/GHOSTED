@@ -30,36 +30,40 @@ export function getReward(db: Db, id: number): Promise<Reward | null> {
   return db.getFirstAsync<Reward>(`${SELECT} WHERE id = ?`, [id]);
 }
 
-export async function createReward(db: Db, input: RewardInput): Promise<number> {
-  const { lastInsertRowId } = await db.runAsync(
-    `INSERT INTO rewards (name, icon, description, category, cost, stock, sort_order, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM rewards), ?)`,
-    [
-      input.name.trim(),
-      input.icon,
-      input.description.trim(),
-      input.category.trim(),
-      input.cost,
-      input.stock,
-      nowIso(),
-    ],
-  );
-  return lastInsertRowId;
+export function createReward(db: Db, input: RewardInput): Promise<number> {
+  return transaction(db, async () => {
+    const { lastInsertRowId } = await db.runAsync(
+      `INSERT INTO rewards (name, icon, description, category, cost, stock, sort_order, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM rewards), ?)`,
+      [
+        input.name.trim(),
+        input.icon,
+        input.description.trim(),
+        input.category.trim(),
+        input.cost,
+        input.stock,
+        nowIso(),
+      ],
+    );
+    return lastInsertRowId;
+  });
 }
 
-export async function updateReward(db: Db, id: number, input: RewardInput): Promise<void> {
-  await db.runAsync(
-    'UPDATE rewards SET name = ?, icon = ?, description = ?, category = ?, cost = ?, stock = ? WHERE id = ?',
-    [
-      input.name.trim(),
-      input.icon,
-      input.description.trim(),
-      input.category.trim(),
-      input.cost,
-      input.stock,
-      id,
-    ],
-  );
+export function updateReward(db: Db, id: number, input: RewardInput): Promise<void> {
+  return transaction(db, async () => {
+    await db.runAsync(
+      'UPDATE rewards SET name = ?, icon = ?, description = ?, category = ?, cost = ?, stock = ? WHERE id = ?',
+      [
+        input.name.trim(),
+        input.icon,
+        input.description.trim(),
+        input.category.trim(),
+        input.cost,
+        input.stock,
+        id,
+      ],
+    );
+  });
 }
 
 /** Owned copies stay in Inventory; they just detach from the deleted reward. */
