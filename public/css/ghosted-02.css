@@ -244,3 +244,16 @@ a,button,[role="button"],[data-command]{-webkit-tap-highlight-color:transparent}
 /* Respect OS accessibility preferences. */
 @media(prefers-reduced-motion:reduce){.ghosted-action-label,.boot-mobile-symbol{animation:none!important;transition:none!important;transform:none!important}.v69-promotion.v69-level::before,.v69-promotion.v69-level::after{animation:none!important}}
 
+
+/* V7.0: compact mobile promotion popups (no change to animation logic). */
+@media(max-width:850px){
+ .v69-promotion-inset{min-width:0!important;width:min(82vw,340px)!important;
+   max-width:calc(100vw - 52px)!important;
+   padding:20px 14px 17px!important}
+ .v69-promote-image{max-width:110px!important;max-height:125px!important}
+ .v69-promote-title{font-size:clamp(14px,4vw,20px)!important}
+ .v69-promote-footer,.v69-promote-tier{font-size:10px!important}
+}
+@media(max-width:440px){
+ .v69-promotion-inset{padding:19px 12px!important}
+}

@@ -71,6 +71,14 @@ jobs:
           test -s android/app/src/main/assets/public/js/ghosted-03.js
           chmod +x android/gradlew
 
+      - name: Verify the native GHOSTED launcher icon
+        shell: bash
+        run: |
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          test -s android/app/src/main/res/drawable/ghosted_launcher_foreground.png
+          grep -q 'ghosted_launcher_foreground' android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          echo 'GHOSTED launcher resources verified in Android project.'
+
       - name: Compile installable debug APK
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
