@@ -976,3 +976,20 @@ body[data-section="inventory"] .iv-description>p{margin:10px 0 8px;border-top:1p
 /* Respect control interaction beneath the visual frame; keep all content inside the rails. */
 @media(max-width:420px){.terminal{padding-left:17px!important;padding-right:17px!important}}
 
+
+/* V7.0 MOBILE POLISH — APK icon hookup, mobile viewport edge fit, and hidden mobile scrollbars. */
+html,body{width:100%;height:100%;overscroll-behavior:none}
+body{position:fixed;inset:0;overflow:hidden}
+.crt{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;min-height:100svh;min-height:100dvh;overflow:hidden}
+.terminal{min-height:100%;min-width:100%}
+@media(max-width:850px){
+ .crt{padding:0!important}
+ .terminal{padding:max(10px,env(safe-area-inset-top,0px)) 14px max(10px,env(safe-area-inset-bottom,0px))!important}
+ .terminal::before{inset:0!important;border:20px solid transparent!important;border-image-slice:175 190 175 190 fill!important}
+ .viewport,.telemetry,.overlay #overlay-body,.overlay .gallery{scrollbar-width:none!important;-ms-overflow-style:none!important}
+ .viewport::-webkit-scrollbar,.telemetry::-webkit-scrollbar,.overlay #overlay-body::-webkit-scrollbar,.overlay .gallery::-webkit-scrollbar{width:0!important;height:0!important;display:none!important;background:transparent!important}
+ }
+@media(max-width:420px){
+ .terminal{padding-left:12px!important;padding-right:12px!important}
+ .terminal::before{border-width:16px!important}
+}

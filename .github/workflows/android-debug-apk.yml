@@ -52,6 +52,9 @@ jobs:
           test -s dist/js/ghosted-01.js
           test -s dist/js/ghosted-03.js
           test -s dist/css/ghosted-01.css
+          test -s dist/assets/ranks/rank_001.png
+          test -s dist/assets/divisions/division_01.png
+          test -s dist/assets/frames/terminal_frame_01.png
           echo 'Web assets verified:'
           du -sh dist
 
