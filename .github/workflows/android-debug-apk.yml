@@ -1,0 +1,87 @@
+name: GHOSTED - Android Debug APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghosted-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-apk:
+    name: Build Android debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out GHOSTED
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Build offline GHOSTED web assets
+        run: |
+          npm run build
+          test -s dist/index.html
+          test -s dist/js/ghosted-01.js
+          test -s dist/js/ghosted-03.js
+          test -s dist/css/ghosted-01.css
+          echo 'Web assets verified:'
+          du -sh dist
+
+      - name: Prepare Capacitor Android project
+        shell: bash
+        run: |
+          if [ -f android/gradlew ]; then
+            echo 'Using tracked Android project.'
+          else
+            echo 'Generating Android project from Capacitor configuration.'
+            npx cap add android
+          fi
+          npx cap sync android
+          test -s android/app/src/main/assets/public/js/ghosted-03.js
+          chmod +x android/gradlew
+
+      - name: Compile installable debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Verify APK exists
+        shell: bash
+        run: |
+          test -s android/app/build/outputs/apk/debug/app-debug.apk
+          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK to GitHub Actions artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: GHOSTED-Android-Debug-${{ github.run_number }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

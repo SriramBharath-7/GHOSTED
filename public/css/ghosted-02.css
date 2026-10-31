@@ -1,0 +1,246 @@
+
+:root{--v69-cyan:#36c9cc;--v69-green:#28ecaf;--v69-amber:#e4b75b}
+a,button,[role="button"],[data-command]{-webkit-tap-highlight-color:transparent}
+#terminal-content a,#terminal-content button,.terminal-action,.footer-actions a,.footer-actions button{
+ text-decoration:none!important;cursor:pointer;touch-action:manipulation;
+ transition:color .13s ease,background-color .13s ease,border-color .13s ease,box-shadow .13s ease,filter .13s ease,transform .11s ease;
+}
+#terminal-content a:hover,#terminal-content button:hover,.terminal-action:hover,
+#terminal-content a:focus-visible,#terminal-content button:focus-visible,.terminal-action:focus-visible{
+ text-decoration:none!important;color:#c4fff1!important;
+ text-shadow:0 0 9px rgba(49,243,184,.76),0 0 18px rgba(49,243,184,.28)!important;
+ background:transparent!important;box-shadow:none!important;
+}
+#terminal-content :is(button,a):active,#terminal-content .v69-pressed{transform:translateY(1px) scale(.995);filter:brightness(1.17)}
+#terminal-content :is(button,a):focus-visible{outline:2px solid var(--v69-amber)!important;outline-offset:3px}
+.v69-feedback-settings{display:grid;gap:12px;border:1px solid rgba(28,169,166,.36);padding:14px;margin:10px 0 16px}
+.v69-setting-line{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid rgba(57,138,144,.2);padding:5px 0 11px}
+.v69-setting-line>div{display:grid;gap:4px}.v69-setting-line b{font-weight:600;color:var(--v69-green);font-size:13px}
+.v69-setting-line small,.v69-feedback-settings .muted{font-size:11px;color:#75a5a8}
+.v69-setting-toggle{white-space:nowrap;flex-shrink:0}.v69-volume-label{display:flex;justify-content:space-between;align-items:center;color:#78d9d5;font-size:12px}
+#v69-volume{width:100%;accent-color:#2ee5b4;cursor:pointer;height:16px}
+.v69-promotion[hidden]{display:none!important}
+.v69-promotion{position:fixed;z-index:10050;inset:0;display:grid;place-items:center;pointer-events:none;
+ background:radial-gradient(circle at center,rgba(4,39,38,.75),rgba(0,4,5,.55));opacity:0;transition:opacity .13s ease;font-family:Consolas,'Courier New',monospace}
+.v69-promotion.v69-active{opacity:1}
+.v69-promotion-inset{position:relative;overflow:hidden;min-width:min(85vw,500px);max-width:calc(100vw - 28px);padding:35px 24px 28px;
+ background:linear-gradient(140deg,#071613,#020706 65%);border:1px solid #36b9b6;box-shadow:0 0 42px rgba(11,129,119,.24),inset 0 0 16px rgba(6,112,99,.18);text-align:center}
+.v69-promote-tier{color:#6dc8c8;font-size:12px;letter-spacing:.12em;margin-bottom:13px}
+.v69-promote-title{font-size:clamp(23px,5vw,38px);letter-spacing:.09em;color:var(--v69-green);font-weight:700;text-shadow:0 0 24px rgba(46,236,177,.3)}
+.v69-promote-image{display:block;margin:0 auto 12px;width:min(42vw,160px);height:min(42vw,160px);object-fit:contain;filter:drop-shadow(0 0 16px rgba(65,221,168,.4))}
+.v69-promote-image[hidden]{display:none}
+.v69-promote-footer{color:#6ec3bb;font-size:12px;margin-top:18px;letter-spacing:.04em}
+.v69-scanner{position:absolute;top:-14%;bottom:-14%;left:-40%;width:26%;background:linear-gradient(90deg,transparent,rgba(55,244,203,.13),transparent);transform:skewX(-12deg)}
+.v69-promotion.v69-active .v69-scanner{animation:v69scan 1.5s linear forwards}
+.v69-promotion.v69-active .v69-promote-title{animation:v69resolve .4s steps(5,end) both}
+.v69-sovereign .v69-promotion-inset{border-color:#cca057;box-shadow:0 0 52px rgba(188,129,42,.22)}
+.v69-sovereign .v69-promote-title{color:#f0cd7e;text-shadow:0 0 25px rgba(236,175,79,.3)}
+@keyframes v69scan{to{left:120%}}@keyframes v69resolve{0%{opacity:.2;transform:translateY(4px)}100%{opacity:1;transform:translateY(0)}}
+@media(max-width:440px){.v69-setting-line{flex-wrap:wrap}.v69-setting-toggle{margin-left:auto}.v69-promotion-inset{min-width:calc(100vw - 42px);padding:28px 12px}}
+@media(prefers-reduced-motion:reduce){.v69-promotion,.v69-promotion *{animation:none!important;transition:none!important}#terminal-content :is(button,a),.terminal-action{transition:none!important}}
+
+/* GHOSTED V6.9.1 // TACTICAL MOTION SYSTEM — presentation only */
+#v691-xp-hud[hidden],#v691-stamp[hidden],#v691-vault-doors[hidden],#v69-promotion[hidden]{display:none!important}
+#v691-xp-hud{position:fixed;z-index:10070;left:50%;bottom:clamp(20px,8vh,82px);width:min(440px,calc(100vw - 28px));transform:translateX(-50%) translateY(16px);opacity:0;pointer-events:none;font-family:Consolas,'Courier New',monospace;color:#65ffcb;background:linear-gradient(120deg,rgba(2,20,18,.98),rgba(0,8,9,.96));border:1px solid #277f78;padding:12px 15px;box-shadow:0 10px 36px #000b,0 0 18px #00997622;transition:opacity .2s,transform .2s}
+#v691-xp-hud.v691-fx-show{opacity:1;transform:translateX(-50%) translateY(0)}
+.v691-xp-head{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;letter-spacing:.09em}
+.v691-xp-count{font-size:17px;font-weight:700;text-shadow:0 0 12px #28e3a977}
+.v691-xp-track{height:13px;margin:10px 0 8px;background:repeating-linear-gradient(90deg,#071c1b 0,#071c1b 24px,#122b28 25px,#122b28 26px);border:1px solid #2c706d;overflow:hidden}
+.v691-xp-fill{width:100%;height:100%;background:linear-gradient(90deg,#197b6c,#3fffba 70%,#b7ffeb);transform:scaleX(0);transform-origin:left center;box-shadow:0 0 14px #3efab978}
+#v691-xp-hud.v691-threshold{box-shadow:0 0 25px #14ff9a8c,inset 0 0 14px #1be6a51a}
+.v691-xp-level{font-size:11px;color:#6facad;letter-spacing:.08em}
+#v691-particles{position:fixed;inset:0;z-index:10071;pointer-events:none;overflow:hidden}
+.v691-coin-particle{position:fixed;display:block;color:#eec472;font-size:23px;text-shadow:0 0 10px #dea85988;font-family:Consolas,monospace}
+.v691-coin-earned{position:fixed;font:700 15px Consolas,monospace;color:#ffd77b;text-shadow:0 0 15px #dba051;animation:v691Delta 1.3s both;white-space:nowrap}
+@keyframes v691Delta{0%{opacity:0;transform:translateY(9px)}20%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translateY(-34px)}}
+#stat-coins.v691-coin-pulse{animation:v691Pulse .72s ease-out 2}
+@keyframes v691Pulse{50%{color:#ffed9b;filter:brightness(1.45);text-shadow:0 0 16px #e7b05e}}
+#v691-stamp{position:fixed;z-index:10072;top:36%;left:50%;width:min(410px,calc(100vw - 38px));pointer-events:none;transform:translate(-50%,-50%);font-family:Consolas,'Courier New',monospace;text-align:center;color:#edc97b}
+.v691-stamp-box{border:3px double currentColor;background:#100f07f5;padding:19px 14px;box-shadow:0 0 25px #c18f3a33,inset 0 0 20px #c08a281c;transform:rotate(-5deg)}
+.v691-stamp-main{font-size:clamp(27px,7vw,48px);font-weight:800;letter-spacing:.12em;text-shadow:0 0 15px #bc7f3377}
+.v691-stamp-name{font-size:13px;margin-top:7px;letter-spacing:.06em;color:#f9e0a8}
+.v691-stamp-detail{font-size:10px;margin-top:7px;color:#b8a77b}
+#v691-stamp[data-status="REDEEMED"]{color:#4af3c0}
+#v691-stamp.v691-stamp-on .v691-stamp-box{animation:v691Stamp .95s cubic-bezier(.2,.8,.2,1) both}
+@keyframes v691Stamp{0%{opacity:0;transform:scale(1.5) rotate(-12deg);filter:blur(8px)}35%{opacity:1;transform:scale(.95) rotate(-4deg);filter:blur(0)}65%{transform:scale(1) rotate(-5deg)}100%{opacity:0;transform:scale(.98) rotate(-5deg)}}
+#v691-vault-doors{position:fixed;inset:0;z-index:10080;background:#010605;overflow:hidden;font-family:Consolas,'Courier New',monospace;pointer-events:none;isolation:isolate}
+.v691-vault-ghost{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.28;filter:drop-shadow(0 0 25px #17b39066);z-index:-1}
+.v691-door{position:absolute;inset:0 auto 0 0;width:50.15%;background:repeating-linear-gradient(90deg,transparent 0,transparent 13px,#1b393622 14px,#1b393622 15px),linear-gradient(115deg,#071714 0,#152c28 47%,#030a09 90%);border-right:3px solid #63e9c1;box-shadow:inset -20px 0 25px #000d,0 0 40px #1eecb064;transform:translateX(0)}
+.v691-door.right{left:auto;right:0;border-right:0;border-left:3px solid #63e9c1;box-shadow:inset 20px 0 25px #000d,0 0 40px #1eecb064}
+.v691-door::before{content:'SECURE // CONTAINMENT';position:absolute;top:35%;left:12%;color:#53b5ab;opacity:.55;letter-spacing:.15em;font-size:clamp(8px,1.5vw,15px)}
+.v691-door.right::before{content:'ACCESS // AUTHORIZED'}
+.v691-door::after{content:'';position:absolute;left:13%;right:13%;top:25%;bottom:25%;border-block:1px solid #2a756b;opacity:.5}
+.v691-vault-core{position:absolute;z-index:1;top:50%;left:50%;transform:translate(-50%,-50%);color:#adffda;text-align:center;text-shadow:0 0 18px #55ddba;background:#031410b8;border:1px solid #3aa08e;padding:12px 22px;white-space:nowrap;letter-spacing:.12em;opacity:1}
+.v691-vault-subtitle{font-size:11px;color:#7eb1ae;margin-top:5px}
+#v691-vault-doors.v691-vault-open .v691-door{animation:v691DoorLeft 1.45s cubic-bezier(.2,.6,.2,1) both}
+#v691-vault-doors.v691-vault-open .v691-door.right{animation-name:v691DoorRight}
+#v691-vault-doors.v691-vault-open .v691-vault-core{animation:v691Core 1.35s both}
+@keyframes v691DoorLeft{0%,16%{transform:translateX(0)}26%{transform:translateX(-3%)}100%{transform:translateX(-104%)}}
+@keyframes v691DoorRight{0%,16%{transform:translateX(0)}26%{transform:translateX(3%)}100%{transform:translateX(104%)}}
+@keyframes v691Core{0%,20%{opacity:1}50%{opacity:0;filter:blur(6px)}100%{opacity:0}}
+/* V6.9.4: promotion artwork restricted to official rank insignia inside the card. */
+.v69-promotion-inset{z-index:2;backdrop-filter:blur(4px);background:linear-gradient(120deg,#071613ee,#020706df 68%)}
+.v69-promotion.v69-division .v69-promotion-inset{border-color:#e5bb63;box-shadow:0 0 60px #d5a05142,inset 0 0 30px #7b622224}
+.v69-promotion.v69-division .v69-promote-title{color:#f2d18a}
+.v691-skip{position:absolute;z-index:3;bottom:26px;right:26px;background:#01110be6;border:1px solid #477b78;color:#a4ded0;padding:8px 14px;font:12px Consolas,monospace;cursor:pointer;pointer-events:auto}
+.v691-skip:hover,.v691-skip:focus-visible{border-color:#47edc1;color:#fff;outline:1px solid #47edc1}
+#v691-vault-doors .v691-skip{position:absolute;bottom:14px;right:14px}
+@media(max-width:600px){.v691-stamp-box{padding:12px 9px}.v691-vault-core{font-size:11px;max-width:calc(100vw - 26px)}.v691-door::before{font-size:8px}.v691-skip{bottom:14px;right:12px}}
+@media(prefers-reduced-motion:reduce){#v691-xp-hud,#v691-stamp,#v691-vault-doors,.v691-coin-particle,.v691-coin-earned,.v691-promote-ghost{display:none!important;animation:none!important;transition:none!important}}
+
+
+
+/* V6.9.4: source-wide interaction stability. Pure text feedback; no pseudo-elements or layout shifts. */
+#terminal-content :is(button,a,[role="button"]), .terminal-action, .device-menu-help button,
+.nav-entries button, .footer-actions button, .v63-system-route button{
+  transition:color .16s ease,text-shadow .16s ease,filter .16s ease!important;
+  box-shadow:none!important;text-decoration:none!important;
+}
+#terminal-content :is(button,a,[role="button"]):is(:hover,:focus-visible),
+.terminal-action:is(:hover,:focus-visible),.device-menu-help button:is(:hover,:focus-visible),
+.nav-entries button:is(:hover,:focus-visible),.footer-actions button:is(:hover,:focus-visible){
+  background-color:transparent!important;background-image:none!important;
+  box-shadow:none!important;color:#c3ffe8!important;
+  text-shadow:0 0 9px rgba(40,237,176,.85),0 0 18px rgba(40,237,176,.38)!important;
+  filter:brightness(1.1);
+  text-decoration:none!important;
+  transform:none!important;
+}
+.nav-entries .entry:hover,.nav-entries .entry:focus-within{background:transparent!important}
+/* Keep native label-box geometry invariant across default / hovered / focused / pressed. */
+#terminal-content button::after,#terminal-content a::after,.terminal-action::after,
+.nav-entries button::after,.device-menu-help button::after,.footer-actions button::after{content:none!important;display:none!important}
+.nav-entries .entry,.nav-entries .entry .name,.nav-entries .terminal-action{min-width:0}
+.nav-entries .entry .terminal-action,.footer-actions .terminal-action,
+.v63-system-route .terminal-action,.device-menu-help button{white-space:nowrap;overflow-wrap:normal;word-break:normal}
+/* Accessibility: use a restrained text-only underline for keyboard focus. */
+#terminal-content :is(button,a):focus-visible,.terminal-action:focus-visible{outline:1px dotted #97ffdc!important;outline-offset:3px}
+/* Presentation backdrop stays subtle, while all animated machinery stays INSIDE the popup. */
+.v69-promotion{background:rgba(0,8,9,.55)!important;overflow:hidden}
+.v69-promotion .v69-promotion-inset{isolation:isolate;width:min(500px,calc(100vw - 34px));min-width:0;
+  backdrop-filter:none;transform-origin:center center;background:linear-gradient(142deg,#071815f7,#010807f8 72%)}
+.v69-promotion-inset > :not(.v694-card-assembly){position:relative;z-index:2}
+.v694-card-assembly{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.v694-line,.v694-shutter,.v694-ring,.v694-beam{position:absolute;display:block;pointer-events:none}
+.v694-line{top:50%;width:44%;height:1px;background:linear-gradient(90deg,transparent,#39e9c2);opacity:0}
+.v694-line-l{left:0;transform:translateX(-105%)}.v694-line-r{right:0;transform:translateX(105%) rotate(180deg)}
+.v694-ring{width:160px;height:160px;left:50%;top:49%;border:2px dashed #f4cd83;border-radius:50%;opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-65deg)}
+.v694-shutter{top:0;bottom:0;width:50%;background:linear-gradient(90deg,#0c2b26,#05211c);opacity:0}
+.v694-shutter-l{left:0}.v694-shutter-r{right:0}
+.v694-beam{left:-55%;top:0;bottom:0;width:40%;background:linear-gradient(90deg,transparent,rgba(70,247,197,.2),transparent);transform:skewX(-14deg);opacity:0}
+.v69-promotion .v69-promote-image{position:relative;z-index:2}
+.v69-promotion.v69-active .v69-promotion-inset{animation:none}
+/* Tier 1: fast digital readout with localized horizontal scan */
+.v69-level.v69-active .v69-promotion-inset{animation:v694LevelCard 1.35s cubic-bezier(.18,.8,.23,1) both}
+.v69-level.v69-active .v69-promote-title{animation:v694Digits 1.2s steps(7,end) both!important}
+.v69-level.v69-active .v694-beam{animation:v694Beam 1.12s ease-out .13s both}
+.v69-level.v69-active .v69-scanner{animation:none!important;display:none}
+@keyframes v694LevelCard{0%{transform:translateY(23px) scale(.96);opacity:0}22%{opacity:1}48%{transform:translateY(-3px) scale(1.01)}100%{transform:none;opacity:1}}
+@keyframes v694Digits{0%{opacity:0;filter:blur(7px);letter-spacing:.45em}24%{opacity:.65;filter:blur(2px)}45%{opacity:1;filter:blur(0);letter-spacing:.13em}55%{opacity:.25}70%,100%{opacity:1;letter-spacing:.09em}}
+@keyframes v694Beam{0%{left:-55%;opacity:0}25%{opacity:1}95%{opacity:.5}100%{left:125%;opacity:0}}
+/* Tier 2: insignia assembled by two mechanical horizontal beams */
+.v69-rank.v69-active .v69-promotion-inset{animation:v694RankCard 2.65s ease-out both}
+.v69-rank.v69-active .v694-line-l{animation:v694LineL 1.2s ease-out both}
+.v69-rank.v69-active .v694-line-r{animation:v694LineR 1.2s ease-out both}
+.v69-rank.v69-active .v69-promote-image{animation:v694Insignia 1.1s steps(8,end) .37s both}
+.v69-rank.v69-active .v69-promote-title{animation:v694RankLabel .7s ease .95s both!important}
+.v69-rank.v69-active .v69-scanner{animation:none!important;display:none}
+@keyframes v694RankCard{0%{opacity:0;filter:brightness(.5)}17%{opacity:1}35%{filter:brightness(1.25)}100%{filter:brightness(1)}}
+@keyframes v694LineL{0%{opacity:0;transform:translateX(-105%)}20%{opacity:1}75%{opacity:1;transform:translateX(0)}100%{opacity:0;transform:translateX(8%)}}
+@keyframes v694LineR{0%{opacity:0;transform:translateX(105%) rotate(180deg)}20%{opacity:1}75%{opacity:1;transform:translateX(0) rotate(180deg)}100%{opacity:0;transform:translateX(-8%) rotate(180deg)}}
+@keyframes v694Insignia{0%{opacity:0;clip-path:inset(100% 0 0 0);filter:brightness(4)}25%{opacity:.7;clip-path:inset(50% 0 0 0)}60%{opacity:1;clip-path:inset(0 0 0 0);filter:brightness(1.8)}100%{opacity:1;filter:brightness(1)}}
+@keyframes v694RankLabel{0%{opacity:0;transform:translateY(9px);letter-spacing:.27em}100%{opacity:1;transform:none;letter-spacing:.09em}}
+/* Tier 3: amber shutters split and circular clearance scanner rotates inside card */
+.v69-division .v69-promotion-inset{border-color:#edc678}
+.v69-division.v69-active .v694-shutter{opacity:.95}
+.v69-division.v69-active .v694-shutter-l{animation:v694OpenLeft 1.7s cubic-bezier(.15,.7,.2,1) both .08s}
+.v69-division.v69-active .v694-shutter-r{animation:v694OpenRight 1.7s cubic-bezier(.15,.7,.2,1) both .08s}
+/* V6.9.6: no rotating circle in Division Promotion. */
+.v69-division.v69-active .v69-promote-image{animation:v694DivisionImage 1.5s ease-out .55s both}
+.v69-division.v69-active .v69-promote-title{animation:v694RankLabel .72s ease 1.42s both!important}
+.v69-division.v69-active .v69-scanner{animation:none!important;display:none}
+@keyframes v694OpenLeft{0%,22%{transform:translateX(0);opacity:.9}72%{transform:translateX(-103%);opacity:.7}100%{transform:translateX(-110%);opacity:0}}
+@keyframes v694OpenRight{0%,22%{transform:translateX(0);opacity:.9}72%{transform:translateX(103%);opacity:.7}100%{transform:translateX(110%);opacity:0}}
+@keyframes v694Clearance{0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-65deg)}30%{opacity:.76}70%{opacity:.8;transform:translate(-50%,-50%) scale(1.03) rotate(275deg)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.17) rotate(300deg)}}
+@keyframes v694DivisionImage{0%,30%{opacity:0;filter:blur(8px)}70%,100%{opacity:1;filter:blur(0)}}
+/* Tier 4: exclusive golden convergence and final authorization, no Ghost background */
+.v69-sovereign .v69-promotion-inset{border:2px solid #e3b96a;background:radial-gradient(circle at 50% 30%,#27200f,#070906 75%)}
+.v69-sovereign.v69-active .v694-ring{border:2px solid #edbf70;box-shadow:0 0 35px #d3a65340;
+ animation:v694SovereignHalo 3.7s cubic-bezier(.14,.75,.18,1) both}
+.v69-sovereign.v69-active .v694-beam{background:linear-gradient(90deg,transparent,rgba(245,207,115,.27),transparent);animation:v694Beam 3.1s linear both}
+.v69-sovereign.v69-active .v69-promote-title{animation:v694SovereignTitle 2.85s ease-out 1.02s both!important}
+.v69-sovereign.v69-active .v69-promote-footer{animation:v694RankLabel .8s ease-out 2.48s both}
+.v69-sovereign.v69-active .v69-scanner{animation:none!important;display:none}
+@keyframes v694SovereignHalo{0%{opacity:0;transform:translate(-50%,-50%) scale(.05) rotate(-120deg)}20%{opacity:.8}68%{opacity:.95;transform:translate(-50%,-50%) scale(1.02) rotate(290deg)}100%{opacity:.16;transform:translate(-50%,-50%) scale(1.16) rotate(350deg)}}
+@keyframes v694SovereignTitle{0%{opacity:0;transform:scale(.94);filter:blur(12px);letter-spacing:.3em}45%{opacity:.9;filter:blur(2px)}72%,100%{opacity:1;filter:blur(0);transform:scale(1);letter-spacing:.1em}}
+@media(max-width:440px){.v69-promotion-inset{padding:24px 12px!important}.v694-ring{width:120px;height:120px}}
+@media(prefers-reduced-motion:reduce){.v69-promotion.v69-active :is(.v69-promotion-inset,.v69-promote-title,.v69-promote-image,.v694-line,.v694-ring,.v694-shutter,.v694-beam),.v69-promotion.v69-active .v69-promote-footer{animation:none!important;transition:none!important}}
+
+/* V6.9.5 // stabilized device controls, mobile boot and feedback */
+.device-menu-help{grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr))!important;gap:10px!important;align-items:stretch}
+.device-menu-help .device-control{display:flex!important;align-items:center!important;justify-content:center!important;min-width:0!important;max-width:100%;width:100%;white-space:nowrap!important;overflow:visible!important;box-sizing:border-box!important;padding:11px 7px!important;font-size:clamp(9px,.82vw,11px)!important;line-height:1.32!important;min-height:43px!important;letter-spacing:0!important}
+.device-control .ghosted-action-label{white-space:nowrap;display:inline-block}
+.ghosted-action-label{display:inline-block;transform-origin:center;transition:transform .22s cubic-bezier(.22,.76,.18,1),color .18s,text-shadow .2s;will-change:transform}
+@media(hover:hover) and (pointer:fine){
+ #terminal-content :is(button,a):hover .ghosted-action-label,#terminal-content :is(button,a):focus-visible .ghosted-action-label{transform:scale(1.065)!important;text-shadow:0 0 9px #2fffbbad,0 0 20px #2fffbb77!important}
+}
+#terminal-content :is(button,a):active .ghosted-action-label{transform:scale(.975)!important}
+@media(max-width:500px){.device-menu-help{grid-template-columns:1fr!important}.device-menu-help .device-control{font-size:11px!important;min-height:42px!important;justify-content:flex-start!important;padding-left:16px!important}}
+@media(min-width:501px) and (max-width:850px){.device-menu-help{grid-template-columns:repeat(2,minmax(0,1fr))!important}.device-menu-help .device-control{font-size:10px!important}}
+.boot-mobile-brand{display:none}
+/* Phone boot is a purpose-built boot page, not a tall miniature desktop console. */
+@media(max-width:600px){
+ .boot-screen{padding:22px 22px max(30px,env(safe-area-inset-bottom,24px));overflow:hidden;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 45%,#08231e 0,#000705 55%,#000 100%)}
+ .boot-screen:before{inset:12px;border:1px solid #176d57;opacity:.5}
+ .boot-panel{width:min(100%,410px);height:auto;min-height:0;display:flex;flex-direction:column;gap:0;padding:20px 4px}
+ .boot-eyebrow{font-size:9px;line-height:1.5;letter-spacing:.06em;border-bottom:1px solid #1aa98b;padding:9px 0;margin-bottom:22px;white-space:normal}
+ .boot-mark{display:none!important}
+ .boot-mobile-brand{display:flex;align-items:center;justify-content:center;gap:14px;min-height:94px;margin:5px 0 14px}
+ .boot-mobile-symbol{width:88px;height:88px;object-fit:contain;filter:drop-shadow(0 0 12px #24c7ad77);animation:ghostedBootBadge 1.5s ease both}
+ .boot-mobile-lockup{min-width:0;display:grid;gap:5px}
+ .boot-mobile-lockup strong{font:700 clamp(26px,8.5vw,42px)/1 var(--mono);letter-spacing:.045em;color:#28ffd0;text-shadow:0 0 20px #1ed39ba0}
+ .boot-mobile-lockup small{font:9px/1.5 var(--mono);letter-spacing:.12em;color:#6fcaca}
+ .boot-subtitle{font-size:9px;letter-spacing:.14em;margin:0 0 25px;text-align:center}
+ .boot-log{height:auto!important;min-height:102px;max-height:none;display:flex;justify-content:center;font-size:10px;line-height:1.6;margin:0 0 20px;gap:5px;white-space:normal}
+ .boot-meter{height:12px;margin-top:3px}
+ .boot-bottom{padding:14px 0 0;gap:12px;flex-wrap:wrap;font-size:10px}
+ .boot-bottom button{font-size:10px;padding:9px 10px;margin-left:auto}
+}
+@keyframes ghostedBootBadge{0%{opacity:0;transform:translateY(8px) scale(.88);filter:brightness(3)}45%{opacity:1}100%{opacity:1;transform:none}}
+/* V6.9.6 — Restore the EXACT original level-up circuit animation from the earlier approved build.
+   Changes are visual only; no rewards, navigation, settings, or saved data touched. */
+/* Circuit-board lines are exclusive to the ordinary LEVEL-UP overlay. */
+.v69-promotion.v69-level{isolation:isolate}
+.v69-promotion.v69-level::before{
+ content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+ background-image:
+   radial-gradient(circle at 16% 23%,#50f9caa9 0 2px,transparent 4px),
+   radial-gradient(circle at 75% 18%,#50f9ca99 0 2px,transparent 4px),
+   radial-gradient(circle at 83% 69%,#50f9caaa 0 2px,transparent 4px),
+   radial-gradient(circle at 19% 81%,#50f9caa0 0 2px,transparent 4px),
+   linear-gradient(90deg,transparent 16%,#23c69c66 16.1% 16.22%,transparent 16.3%),
+   linear-gradient(90deg,transparent 75%,#23c69c6a 75.1% 75.22%,transparent 75.3%),
+   linear-gradient(90deg,transparent 83%,#23c69c6a 83.1% 83.22%,transparent 83.3%),
+   linear-gradient(0deg,transparent 23%,#23c69c66 23.1% 23.23%,transparent 23.35%),
+   linear-gradient(0deg,transparent 69%,#23c69c60 69.1% 69.23%,transparent 69.35%),
+   repeating-linear-gradient(90deg,transparent 0 64px,#1de4a522 65px 66px,transparent 67px 120px),
+   repeating-linear-gradient(0deg,transparent 0 68px,#1de4a51d 69px 70px,transparent 71px 116px);
+ mask-image:radial-gradient(ellipse at center,#000 12%,#000b 55%,transparent 88%);
+ opacity:0;transform:scale(.9);
+}
+.v69-promotion.v69-level::after{
+ content:"";position:absolute;left:0;right:0;top:0;height:2px;z-index:0;pointer-events:none;
+ background:linear-gradient(90deg,transparent,#2af4c66e,transparent);opacity:0;
+}
+.v69-promotion.v69-level.v69-active::before{animation:v695CircuitGrid 1.65s ease-out both}
+.v69-promotion.v69-level.v69-active::after{animation:v695CircuitSweep 1.55s ease-in-out both}
+.v69-level .v69-promotion-inset{position:relative;z-index:1}
+@keyframes v695CircuitGrid{0%{opacity:0;transform:scale(.90);filter:brightness(2)}25%{opacity:.82;transform:scale(1);filter:brightness(1.2)}64%{opacity:.67;filter:brightness(1)}100%{opacity:0;transform:scale(1.045)}}
+@keyframes v695CircuitSweep{0%{top:100%;opacity:0}18%{opacity:.8}78%{opacity:.5}100%{top:0;opacity:0}}
+/* Division promotion: shutters + amber insignia remain, but NO circular clearance ring. */
+.v69-promotion.v69-division .v694-ring,
+.v69-promotion.v69-division .v694-ring::before,
+.v69-promotion.v69-division .v694-ring::after{display:none!important;animation:none!important;visibility:hidden!important}
+/* Respect OS accessibility preferences. */
+@media(prefers-reduced-motion:reduce){.ghosted-action-label,.boot-mobile-symbol{animation:none!important;transition:none!important;transform:none!important}.v69-promotion.v69-level::before,.v69-promotion.v69-level::after{animation:none!important}}
+
