@@ -293,6 +293,7 @@ async function cloudUpload() {
   const session = await requireCloudSession();
   const profile = cloudLocalProfile();
   const remote = await cloudInspect();
+  if(localStorage.getItem(CLOUD_SYNC_CONFLICT))throw Error('Protected sync conflict; use Settings → Sync Control Center before any upload');
   const acknowledged = window.localStorage.getItem(CLOUD_REVISION_KEY);
   if (remote.remoteExists && (!acknowledged || Number(acknowledged) !== remote.revision)) {
     throw new Error('Cloud already has another or newer snapshot. Upload blocked to prevent overwriting it');
@@ -592,24 +593,29 @@ function exportCloudConflict(){
 }
 function cloudConflictBanner(){
  if(!document.body||document.getElementById('ghosted-cloud-conflict'))return;
- const box=document.createElement('div');
- box.id='ghosted-cloud-conflict';box.setAttribute('role','status');
- box.style.cssText='position:fixed;z-index:10095;top:8px;right:8px;max-width:min(285px,calc(100vw - 16px));background:#07150f;color:#e8bd6e;border:1px solid #a77a35;border-radius:6px;padding:8px 10px;font:11px/1.4 monospace;box-shadow:0 3px 16px #000b;';
- const title=document.createElement('div');title.textContent='CLOUD PAUSED // COPIES PRESERVED';
- const desc=document.createElement('div');desc.textContent='Conflicting progress needs review. No overwrite.';
- desc.style.cssText='opacity:.85;margin:3px 0 6px;';
- const save=document.createElement('button');save.type='button';save.textContent='SAVE BOTH';
- save.style.cssText='color:#8ef1bc;background:#092318;border:1px solid #296a4a;border-radius:4px;padding:4px 8px;font:inherit;';
- save.addEventListener('click',()=>{try{exportCloudConflict();cloudNotice('RECOVERY DOWNLOAD REQUESTED');}catch{cloudNotice('EXPORT FAILED — COPIES PRESERVED');}});
- const retry=document.createElement('button');retry.type='button';retry.textContent='RECHECK';
- retry.style.cssText='background:transparent;color:#8ef1bc;border:0;margin-left:6px;font:inherit;';
- retry.addEventListener('click',()=>{retry.disabled=true;void resumeCloudSyncSafely().then(r=>{if(r.conflict)cloudNotice('STILL CONFLICTED — COPIES PRESERVED');else if(r.retrying)cloudNotice('WAITING FOR NETWORK');else cloudNotice('CLOUD RECHECKED');}).catch(()=>cloudNotice('RECHECK BLOCKED — COPIES SAFE')).finally(()=>{retry.disabled=false;});});
- const hide=document.createElement('button');hide.type='button';hide.textContent='HIDE';
- hide.style.cssText='background:transparent;color:#e8bd6e;border:0;margin-left:10px;font:inherit;';
+ const box=document.createElement('div');box.id='ghosted-cloud-conflict';
+ box.setAttribute('role','alert');
+ box.style.cssText='position:fixed;z-index:10095;top:8px;right:8px;max-width:min(310px,calc(100vw - 16px));background:#07150f;color:#e8bd6e;border:1px solid #a77a35;border-radius:6px;padding:9px 10px;font:11px/1.5 monospace;box-shadow:0 3px 16px #000b;';
+ const title=document.createElement('div');title.textContent='SYNC PAUSED // ACTION REQUIRED';
+ const desc=document.createElement('div');desc.textContent='Android and website differ. Your data is preserved. SAVE BOTH creates a backup; it does not synchronize.';
+ desc.style.cssText='opacity:.9;margin:3px 0 8px;';
+ const resolve=document.createElement('button');resolve.type='button';resolve.textContent='[ REVIEW & RESOLVE ]';
+ resolve.style.cssText='color:#92f7bd;background:#092318;border:1px solid #296a4a;border-radius:4px;padding:5px 8px;font:inherit;';
+ resolve.addEventListener('click',()=>{flawlessPanel();});
+ const save=document.createElement('button');save.type='button';save.textContent='[ EXPORT ]';
+ save.style.cssText='background:transparent;color:#8ef1bc;border:0;margin-left:5px;font:inherit;';
+ save.addEventListener('click',()=>{try{exportCloudConflict();cloudNotice('BACKUP REQUESTED // VERIFY DOWNLOAD; CONFLICT STILL PAUSED');}catch(error){cloudNotice('EXPORT FAILED // '+String(error).slice(0,90));}});
+ const hide=document.createElement('button');hide.type='button';hide.textContent='[ HIDE ]';
+ hide.style.cssText='background:transparent;color:#e8bd6e;border:0;margin-left:5px;font:inherit;';
  hide.addEventListener('click',()=>box.remove());
- box.append(title,desc,save,retry,hide);document.body.append(box);
+ box.append(title,desc,resolve,save,hide);document.body.append(box);
 }
 async function resumeCloudSyncSafely(){
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)){
+  cloudSync.enabled=false;cloudSync.mode='conflict-protected';
+  cloudConflictBanner();
+  return {conflict:true,needsDecision:true,reason:'Protected conflict needs review; export both copies, then choose in Sync Control Center'};
+ }
  if(cloudSync.busy)return {busy:true};
  if(!cloudState.configured)throw Error('Cloud not configured');
  if(navigator.onLine)await requireCloudSession();
@@ -793,6 +799,14 @@ function stopCloudSync(reason = 'disabled') {
 }
 
 async function syncCycle(){
+ // A saved conflict is a hard safety stop, including after an app restart.
+ // Merely pressing RECHECK or enabling a poll must never bypass operator review.
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)){
+  cloudSync.enabled=false;cloudSync.mode='conflict-protected';
+  if(cloudSyncTimer)clearInterval(cloudSyncTimer);cloudSyncTimer=null;
+  cloudConflictBanner();
+  return {conflict:true,needsDecision:true};
+ }
  if(!cloudSync.enabled||cloudSync.busy||!navigator.onLine)return {skipped:true};
  if(cloudSync.nextRetryAt>Date.now())return {retrying:true,nextRetryAt:new Date(cloudSync.nextRetryAt).toISOString()};
  cloudSync.busy=true;
