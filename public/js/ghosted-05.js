@@ -317,7 +317,7 @@ function bootLines(){return `<div class="term-line"><span class="good">[OK]</spa
 <div class="term-line"><span class="good">[OK]</span> <span class="info">DOT-MATRIX OPERATOR SET LOADED (8 VARIANTS)</span></div>
 <div class="term-line"><span class="good">[OK]</span> <span class="info">100 ORIGINAL RANK BADGES + GHOST SOVEREIGN</span></div>
 <div class="term-line"><span class="${persisted?'good':'warn'}">[${persisted?'OK':'--'}]</span> <span class="info">BROWSER STORAGE ${persisted?'AVAILABLE':'UNAVAILABLE'}</span></div>
-<div class="term-line"><span class="warn">[INFO]</span> <span class="info">PUBLIC PROFILE / GUARDED CLOUD SYNC WHEN LINKED</span></div>
+<div class="term-line"><span class="warn">[INFO]</span> <span class="info">PUBLIC PROFILE / ${window.GHOSTED_OFFLINE_NATIVE?'DEVICE-ONLY STORAGE':'GUARDED CLOUD SYNC WHEN LINKED'}</span></div>
 <div class="term-line"><span class="good">[OK]</span> <span class="good bold">GHOSTED SESSION READY</span></div>`;}
 function home(){const s=service();const progress=(s.xp-s.prevLevelXp)/(s.nextLevelXp-s.prevLevelXp);return `
 <div class="v68-mobile-hide-boot">${sectionHead('SYSTEM / INITIALIZATION','REAL HISTORY // OFFLINE PERSONAL MODE')}${bootLines()}</div>
@@ -1397,7 +1397,7 @@ function rmSaveSettings(e){e.preventDefault();const f=e.target,x=n=>f.elements.n
 }
 window.GHOSTED_REMINDERS={preview:(days=7)=>rmUpcoming(new Date(),Math.max(1,Math.min(30,Number(days)||7))),sync:()=>{rmLastSignature='';reminderRequestSync();},status:rmStatus};
 
-function settingsPage(){return `${sectionHead('SETTINGS / LOCAL OPERATOR','WEB APPLICATION')}
+function settingsPage(){return `${sectionHead('SETTINGS / LOCAL OPERATOR',window.GHOSTED_OFFLINE_NATIVE?'ANDROID OFFLINE APP':'WEB APPLICATION')}
  ${metric('STORAGE',storageCorrupt?'<span class="bad">CORRUPTED — WRITES DISABLED</span>':persisted?'AVAILABLE':'UNAVAILABLE')}
  ${metric('PROGRESS MODE','REAL HISTORY // CONFIRMED EVENTS')}${metric('HABIT IMPORT','562 CONFIRMED EVENTS // RECONCILED')}
  ${metric('OPERATOR CALLSIGN',esc(state.callsign||'SRIRAM BHARATH'))}${metric('SERVICE START','01 JAN 2026')}${metric('HISTORICAL CAREER CREDIT',state.historicalCareerSeed?short(state.historicalCareerSeed.xp)+' XP / '+short(state.historicalCareerSeed.coins)+' GC':'AWAITING HISTORY RECONCILIATION')}${metric('CREDIT STATUS','PROVISIONAL // VERIFIED EVENTS, INCOMPLETE SCHEDULE EVIDENCE')}${metric('HELP MODE',state.settings.helpMode?'ON — INSTRUCTIONS VISIBLE':'OFF — CLEAN INTERFACE')}
@@ -1406,12 +1406,10 @@ function settingsPage(){return `${sectionHead('SETTINGS / LOCAL OPERATOR','WEB A
  ${metric('SCANLINES',state.settings.scanlines?'ON':'OFF')}
  ${metric('BACKUP','VERSION 4 — PUBLIC DATA ONLY')}
  ${reminderSettingsHTML()}
- ${sectionHead('CLOUD & SYNC','OPERATION FLAWLESS // RECOVERY CONTROL')}
- <div class="muted">Review pending changes, restart synchronization without rebooting GHOSTED, and recover conflicting copies safely.</div>
- ${action('[ OPEN SYNC CONTROL CENTER ]','synccenter')}
+ ${window.GHOSTED_OFFLINE_NATIVE ? sectionHead('DEVICE BACKUPS','OFFLINE ONLY / USER-SELECTED FOLDER') + '<div class="muted">No login, no cloud, no synchronization. Use the local Android backup controls below.</div>' : sectionHead('CLOUD & SYNC','OPERATION FLAWLESS // RECOVERY CONTROL') + '<div class="muted">Review pending changes, restart synchronization without rebooting GHOSTED, and recover conflicting copies safely.</div>' + action('[ OPEN SYNC CONTROL CENTER ]','synccenter')}
  ${sectionHead('DATABASE DIAGNOSTICS','NATIVE SQLITE CHECK')}
  <div class="muted">Android SQLite status and safe readback test. WebView storage may persist even when native SQLite is unavailable.</div>
- <div class="footer-actions">${action('[ CHECK DATABASE STATUS ]','dbstatus')}${action('[ TEST SQLITE WRITE / READ ]','dbtest')}</div>
+ <div class="footer-actions">${action('[ CHECK DATABASE STATUS ]','dbstatus')}${window.GHOSTED_OFFLINE_NATIVE?'':action('[ TEST SQLITE WRITE / READ ]','dbtest')}</div>
  ${sectionHead('DATA SAFETY','MANUAL BACKUP / RESTORE')}
  <div class="notice">REAL HISTORY // 562 SCREENSHOT-CONFIRMED COMPLETIONS. UNKNOWN OR BLANK SOURCE CELLS WERE NOT IMPORTED AS MISSES. HISTORICAL SERVICE CREDIT IS PROVISIONAL AND FROZEN: 15,035 XP / 4,780 GC. ORIGINAL SCHEDULES UNKNOWN. NO AUTOMATIC REPAYMENT OF IMPORTED EVENTS.</div>
  ${action('[ MERGE CONFIRMED HABIT HISTORY ]','historymerge')}
@@ -1432,7 +1430,7 @@ function settingsPage(){return `${sectionHead('SETTINGS / LOCAL OPERATOR','WEB A
  <div class="footer-actions">${action('[ TOGGLE SCANLINES ]','scanlines')}${action('[ TOGGLE SOUNDS ]','sounds')}${action('[ TEST SOUND ]','beep')}</div>
  ${sectionHead('PROFILE','DESTRUCTIVE OPERATIONS REQUIRE CONFIRMATION')}
  <div class="footer-actions">${action('[ RESET PUBLIC PROFILE ]','reset')}${action('[ SYSTEM ]','system')}</div>
- <div class="notice">Android reminders depend on device permissions. Public profile cloud sync operates when configured, signed in and connected; queued offline changes retry. Private Vault stays local.</div>`;}
+ <div class="notice">Android reminders depend on device permissions. ${window.GHOSTED_OFFLINE_NATIVE?'All app features run offline. To retain history after uninstall, enable external backups in a user-selected Documents folder. The Vault backup remains encrypted.':'Public profile cloud sync operates when configured, signed in and connected; queued offline changes retry. Private Vault stays local.'}</div>`;}
 
 function conceptsPage(){return `
 ${sectionHead('REFERENCE ARCHIVE / ORIGINAL CONCEPTS','10 APPROVED VISUAL SCREENS')}
