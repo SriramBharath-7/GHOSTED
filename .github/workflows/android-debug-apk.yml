@@ -60,6 +60,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_GHOSTED_V8_RPC_ENABLED: ${{ vars.VITE_GHOSTED_V8_RPC_ENABLED }}
         run: |
           npm run build
 
