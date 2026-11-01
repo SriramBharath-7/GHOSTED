@@ -1,14 +1,19 @@
 import { defineConfig } from 'vite';
 
-export default defineConfig(({mode})=>({
+// Site and Android share visual assets, but never share the JavaScript entrypoint.
+export default defineConfig(({ mode }) => ({
   base: './',
   build: { outDir: mode === 'mobile' ? 'dist-mobile' : 'dist', assetsDir: 'assets' },
   plugins: mode === 'mobile' ? [{
-    name: 'ghosted-offline-android-entry',
-    transformIndexHtml(html) {
-      // Only Android substitutes the entrypoint. Web deployments retain src/main.js.
-      if (!html.includes('/src/main.js')) throw Error('GHOSTED entrypoint missing');
-      return html.replace('/src/main.js','/src/mobile.js');
+    name: 'ghosted-android-local-entry',
+    enforce: 'pre',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        // Vite processes HTML a second time when emitting the bundled page.
+        // Replace the source entry before its module graph is scanned.
+        return html.replace('/src/main.js', '/src/mobile.js');
+      }
     }
   }] : [],
 }));
