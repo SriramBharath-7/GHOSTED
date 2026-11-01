@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="false"
@@ -37,5 +38,6 @@
 
     <!-- Permissions -->
 
-    <!-- No network permission: the native app only loads bundled local assets. -->\n    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <!-- No network permission: the native app only loads bundled local assets. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
 </manifest>
