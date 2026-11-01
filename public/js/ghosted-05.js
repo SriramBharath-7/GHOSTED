@@ -1395,6 +1395,9 @@ function settingsPage(){return `${sectionHead('SETTINGS / LOCAL OPERATOR','WEB A
  ${metric('SCANLINES',state.settings.scanlines?'ON':'OFF')}
  ${metric('BACKUP','VERSION 4 — PUBLIC DATA ONLY')}
  ${reminderSettingsHTML()}
+ ${sectionHead('DATABASE DIAGNOSTICS','NATIVE SQLITE CHECK')}
+ <div class="muted">Android SQLite status and safe readback test. WebView storage may persist even when native SQLite is unavailable.</div>
+ <div class="footer-actions">${action('[ CHECK DATABASE STATUS ]','dbstatus')}${action('[ TEST SQLITE WRITE / READ ]','dbtest')}</div>
  ${sectionHead('DATA SAFETY','MANUAL BACKUP / RESTORE')}
  <div class="notice">REAL HISTORY // 562 SCREENSHOT-CONFIRMED COMPLETIONS. UNKNOWN OR BLANK SOURCE CELLS WERE NOT IMPORTED AS MISSES. HISTORICAL SERVICE CREDIT IS PROVISIONAL AND FROZEN: 15,035 XP / 4,780 GC. ORIGINAL SCHEDULES UNKNOWN. NO AUTOMATIC REPAYMENT OF IMPORTED EVENTS.</div>
  ${action('[ MERGE CONFIRMED HABIT HISTORY ]','historymerge')}
@@ -1637,6 +1640,24 @@ function run(value,opts={}){let raw=String(value||'').trim();if(!raw)return;
  case '0':case 'system':case 'home':case 'back':case 'exit':section='system';break;
  case 'help':case '?':section='help';break;
  case 'status':section='status';break;
+ case 'dbstatus':{
+  section='settings';
+  const d=window.GHOSTED_NATIVE_DB?.status?.()||{platform:'browser',state:'bridge-unavailable',writes:0,lastError:null};
+  setTimeout(()=>popup(`<h2>DATABASE // STATUS</h2><div class="term-line">PLATFORM: ${esc(String(d.platform))}</div><div class="term-line">STATE: ${esc(String(d.state))}</div><div class="term-line">SUCCESSFUL MIRROR WRITES: ${Number(d.writes)||0}</div><div class="term-line">LAST ERROR: ${esc(String(d.lastError||'NONE'))}</div><div class="muted">Reopening confirms persistence, not native SQLite. Run the separate write/read test.</div>`),0);
+  break;
+ }
+ case 'dbtest':{
+  section='settings';
+  setTimeout(async()=>{
+    const d=window.GHOSTED_NATIVE_DB;
+    let result;
+    try{result=d?.selfTest?await d.selfTest():{ok:false,reason:'Diagnostic bridge unavailable'};}
+    catch(error){result={ok:false,error:String(error)};}
+    popup(`<h2>SQLITE // DISPOSABLE PROBE</h2><div class="term-line ${result.ok?'good':'bad'}">${result.ok?'[OK] NATIVE SQLITE VERIFIED':'[FAILED] SQLITE NOT VERIFIED'}</div><div class="term-line">DETAIL: ${esc(String(result.result||result.reason||'UNKNOWN'))}</div><div class="term-line">STATE: ${esc(String(result.state||'UNKNOWN'))}</div><div class="term-line">ERROR: ${esc(String(result.error||result.lastError||'NONE'))}</div><div class="muted">Only a disposable diagnostic record was created and removed. XP, Coins, protocols and Vault were not modified.</div>`);
+  },0);
+  break;
+ }
+
  case 'pnew':section='protocols';setTimeout(()=>popup(prNewForm()),0);break;
  case 'parchive':prArchive(Number(arg),false);break;
  case 'prestore':prArchive(Number(arg),true);break;

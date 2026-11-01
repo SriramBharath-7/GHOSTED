@@ -32,10 +32,46 @@ function saveNative(key, value) {
   });
 }
 
+// Diagnostic probe uses an isolated table; never reads or modifies profile or Vault records.
+async function nativeSelfTest() {
+  if (!nativeReady || status.state !== 'sqlite-ready') {
+    return { ok: false, reason: 'Native SQLite is not ready', ...status };
+  }
+  const marker = `probe-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try {
+    await pending;
+    await CapacitorSQLite.execute({
+      database: DB,
+      statements: 'CREATE TABLE IF NOT EXISTS diagnostic_probe (probe_key TEXT PRIMARY KEY NOT NULL, test_value TEXT NOT NULL);',
+      transaction: true,
+    });
+    await CapacitorSQLite.run({
+      database: DB,
+      statement: 'INSERT INTO diagnostic_probe (probe_key, test_value) VALUES (?, ?)',
+      values: [marker, marker], transaction: true,
+    });
+    const result = await CapacitorSQLite.query({
+      database: DB,
+      statement: 'SELECT test_value FROM diagnostic_probe WHERE probe_key = ? LIMIT 1',
+      values: [marker],
+    });
+    const ok = result.values?.[0]?.test_value === marker;
+    await CapacitorSQLite.run({
+      database: DB,
+      statement: 'DELETE FROM diagnostic_probe WHERE probe_key = ?',
+      values: [marker], transaction: true,
+    });
+    return { ok, result: ok ? 'WRITE / READ / DELETE VERIFIED' : 'READBACK MISMATCH', ...status };
+  } catch (error) {
+    return { ok: false, result: 'PROBE FAILED', error: String(error), ...status };
+  }
+}
+
 window.GHOSTED_NATIVE_DB = {
   mirror: saveNative,
   status: () => ({ ...status }),
   flush: () => pending,
+  selfTest: nativeSelfTest,
 };
 
 async function prepareNativeStorage() {
