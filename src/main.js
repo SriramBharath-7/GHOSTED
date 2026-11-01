@@ -132,16 +132,13 @@ function injectClassic(url) {
 // Async function avoids top-level await so Vite's default ES2020 target can build.
 async function startGhosted() {
   await prepareNativeStorage();
+  await bootstrapCloudProfile();
   for (let i = 1; i <= 5; i++) {
     await injectClassic(`/js/ghosted-0${i}.js`);
   }
 }
 
-const ghostedStartup = startGhosted().catch(error => {
-  console.error('[GHOSTED] Startup failed:', error);
-  status.state = 'startup-error';
-  status.lastError = String(error);
-});
+let ghostedStartup;
 
 // GHOSTED V7.4: explicit, opt-in cloud snapshot testing. No background sync.
 const CLOUD_STORAGE_KEY = 'ghosted:web-os:personal:history:v68';
@@ -182,8 +179,8 @@ async function cloudSignIn() {
     cloudSession = { accessToken: auth.access_token, refreshToken: auth.refresh_token, userId: auth.user.id, expiresAt: Date.now() + auth.expires_in * 1000 };
     cloudState.signedIn = true;
     cloudState.lastError = null;
-    try { sessionStorage.setItem("ghosted:cloud:session:v76", JSON.stringify(cloudSession)); } catch {}
-    return { ok: true, userId: cloudSession.userId, note: 'Session stored only in this browser tab; signed in after reload while tab persists' };
+    persistCloudSession();
+    return { ok: true, userId: cloudSession.userId, note: 'Private-device session persists through restart; sign out on shared devices' };
   } catch (error) { cloudState.lastError = String(error); throw error; }
 }
 
@@ -204,7 +201,7 @@ async function requireCloudSession() {
       if (cloudSession !== old) throw new Error('Cloud session changed while refreshing');
       cloudSession = { accessToken: auth.access_token, refreshToken: auth.refresh_token,
         userId: auth.user.id, expiresAt: Date.now() + auth.expires_in * 1000 };
-      try { sessionStorage.setItem(CLOUD_SYNC_SESSION, JSON.stringify(cloudSession)); } catch {}
+      persistCloudSession();
       return cloudSession;
     })().finally(() => { refreshingCloudSession = null; });
   }
@@ -377,7 +374,7 @@ function stopCloudSync(reason = 'disabled') {
   cloudSync.mode = reason;
   if (cloudSyncTimer) clearInterval(cloudSyncTimer);
   cloudSyncTimer = null;
-  try { sessionStorage.removeItem(CLOUD_SYNC_ARMED); } catch {}
+  try { localStorage.removeItem(CLOUD_SYNC_ARMED); } catch {}
   return { ...cloudSync };
 }
 
@@ -461,37 +458,96 @@ async function enableCloudSync() {
   cloudSync.enabled = true;
   cloudSync.mode = 'running';
   cloudSync.lastError = null;
-  try { sessionStorage.setItem(CLOUD_SYNC_ARMED, '1'); } catch {}
+  try { localStorage.setItem(CLOUD_SYNC_ARMED, '1'); } catch {}
   if (cloudSyncTimer) clearInterval(cloudSyncTimer);
   cloudSyncTimer = setInterval(() => { void syncCycle(); }, 15000);
   const result = await syncCycle();
   return { ok: cloudSync.enabled, ...result, mode: cloudSync.mode };
 }
 
-try {
-  const saved = JSON.parse(sessionStorage.getItem(CLOUD_SYNC_SESSION) || 'null');
-  if (saved?.userId === CLOUD_OWNER_ID && (saved.expiresAt > Date.now() + 30000 || saved.refreshToken)) {
-    cloudSession = saved;
-    cloudState.signedIn = true;
-    if (sessionStorage.getItem(CLOUD_SYNC_ARMED) === '1') {
-      void ghostedStartup.then(() => enableCloudSyncAfterReload());
-    }
-  }
-} catch {}
-
-async function enableCloudSyncAfterReload() {
-  try {
-    const local = cloudLocalProfile();
-    const remote = await cloudReadSnapshot();
-    if (Number(remote.revision) !== Number(localStorage.getItem(CLOUD_REVISION_KEY)) || stableProfile(local) !== stableProfile(remote.payload)) {
-      stopCloudSync('resume-mismatch');
-      return;
-    }
-    cloudSync.enabled = true;
-    cloudSync.mode = 'running';
-    cloudSyncTimer = setInterval(() => { void syncCycle(); }, 15000);
-  } catch (error) { cloudSync.lastError = String(error); stopCloudSync('resume-failed'); }
+// V7.8: the cloud session survives page reload / app restart. Refresh tokens are
+// sensitive: this is private-device storage, not a security boundary against XSS.
+function persistCloudSession() {
+  try { localStorage.setItem(CLOUD_SYNC_SESSION, JSON.stringify(cloudSession)); } catch {}
 }
+
+function resumeCloudSession() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CLOUD_SYNC_SESSION) || 'null');
+    if (saved?.userId === CLOUD_OWNER_ID && saved.refreshToken && saved.accessToken) {
+      cloudSession = saved;
+      cloudState.signedIn = true;
+    }
+  } catch {}
+}
+
+// Import cloud data BEFORE the legacy habit scripts initialize their own state.
+// Never overwrite existing local changes when provenance is uncertain.
+async function bootstrapCloudProfile() {
+  if (!cloudState.configured || !navigator.onLine) return;
+  const localRaw = localStorage.getItem(CLOUD_STORAGE_KEY);
+  if (!cloudSession) {
+    // Sign in once per device; an offline/cancelled launch stays safely local.
+    try { await cloudSignIn(); }
+    catch (error) { console.warn('[GHOSTED cloud] Initial sign-in unavailable; staying local:', error); }
+  }
+  if (!cloudSession) return;
+  try {
+    await requireCloudSession();
+    const remote = await cloudReadSnapshot();
+    const remoteHash = stableProfile(remote.payload);
+    const remoteRevision = Number(remote.revision);
+    const currentRaw = localStorage.getItem(CLOUD_STORAGE_KEY);
+    if (currentRaw === null) {
+      const replacement = JSON.stringify(remote.payload);
+      localStorage.setItem(CLOUD_STORAGE_KEY, replacement);
+      localStorage.setItem(CLOUD_REVISION_KEY, String(remoteRevision));
+      localStorage.setItem(CLOUD_SYNC_HASH, remoteHash);
+      window.GHOSTED_NATIVE_DB?.mirror(CLOUD_STORAGE_KEY, replacement);
+      cloudSync.mode = 'first-install-restored';
+    } else {
+      const localHash = stableProfile(validateCloudRecoveryProfile(JSON.parse(currentRaw)));
+      const ack = Number(localStorage.getItem(CLOUD_REVISION_KEY));
+      const baseline = localStorage.getItem(CLOUD_SYNC_HASH);
+      if (!baseline && localHash === remoteHash) {
+        localStorage.setItem(CLOUD_REVISION_KEY, String(remoteRevision));
+        localStorage.setItem(CLOUD_SYNC_HASH, remoteHash);
+      } else if (baseline && localHash === baseline && ack !== remoteRevision) {
+        // Remote moved while this device was offline; no unsynced local edits.
+        localStorage.setItem(CLOUD_SYNC_RECOVERY, JSON.stringify({
+          format: 'GHOSTED_V78_PRE_CLOUD_RECOVERY', createdAt: new Date().toISOString(),
+          profile: JSON.parse(currentRaw), revision: ack,
+        }));
+        const replacement = JSON.stringify(remote.payload);
+        localStorage.setItem(CLOUD_STORAGE_KEY, replacement);
+        localStorage.setItem(CLOUD_REVISION_KEY, String(remoteRevision));
+        localStorage.setItem(CLOUD_SYNC_HASH, remoteHash);
+        window.GHOSTED_NATIVE_DB?.mirror(CLOUD_STORAGE_KEY, replacement);
+      } else if (!baseline && localHash !== remoteHash) {
+        cloudSync.mode = 'needs-manual-reconciliation';
+      }
+    }
+    if (localStorage.getItem(CLOUD_SYNC_HASH) && cloudSync.mode !== 'needs-manual-reconciliation') {
+      localStorage.setItem(CLOUD_SYNC_ARMED, '1');
+      cloudSync.enabled = true;
+      cloudSync.mode = 'running';
+      if (cloudSyncTimer) clearInterval(cloudSyncTimer);
+      cloudSyncTimer = setInterval(() => { void syncCycle(); }, 15000);
+      void syncCycle();
+    }
+  } catch (error) {
+    cloudSync.lastError = String(error);
+    cloudSync.mode = 'cloud-unavailable-local-preserved';
+    console.warn('[GHOSTED cloud] Local profile preserved:', error);
+  }
+}
+
+resumeCloudSession();
+ghostedStartup = startGhosted().catch(error => {
+  console.error('[GHOSTED] Startup failed:', error);
+  status.state = 'startup-error';
+  status.lastError = String(error);
+});
 
 window.GHOSTED_CLOUD = Object.freeze({
   enableSync: enableCloudSync,
@@ -501,8 +557,8 @@ window.GHOSTED_CLOUD = Object.freeze({
   previewRestore: cloudPreviewRestore,
   restore: cloudRestore,
   status: () => ({ ...cloudState, sessionActive: !!cloudSession && cloudSession.expiresAt > Date.now() + 30000, automaticSync: cloudSync.enabled }),
-  signIn: cloudSignIn,
+  signIn: async () => { const result = await cloudSignIn(); if (result.ok) await bootstrapCloudProfile(); return result; },
   inspect: cloudInspect,
   upload: cloudUpload,
-  logout: () => { stopCloudSync(); cloudSession = null; cloudState.signedIn = false; try { sessionStorage.removeItem(CLOUD_SYNC_SESSION); } catch {} return { ok: true }; },
+  logout: () => { stopCloudSync(); cloudSession = null; cloudState.signedIn = false; try { localStorage.removeItem(CLOUD_SYNC_SESSION); } catch {} return { ok: true }; },
 });
