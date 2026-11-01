@@ -9,20 +9,23 @@ import android.view.WindowInsetsController;
 import android.view.WindowManager;
 
 import com.getcapacitor.BridgeActivity;
-/**
- * GHOSTED V7.1.1 — Native immersive edge-to-edge shell.
- *
- * The approved terminal frame already spans the WebView; this activity lets
- * that WebView occupy the physical display area rather than leaving the
- * Android status/navigation bars outside it. System navigation remains
- * available with a swipe from the edge.
- */
+
+/** GHOSTED V7.1.4 — keep the existing terminal WebView in the full display area. */
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Apply window geometry before Capacitor constructs its WebView.
+        configureFullScreenWindow();
         super.onCreate(savedInstanceState);
         applyImmersiveDisplay();
     }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        applyImmersiveDisplay();
+    }
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -30,15 +33,25 @@ public class MainActivity extends BridgeActivity {
             applyImmersiveDisplay();
         }
     }
-    private void applyImmersiveDisplay() {
+
+    private void configureFullScreenWindow() {
         Window window = getWindow();
+        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             WindowManager.LayoutParams params = window.getAttributes();
-            params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            params.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
             window.setAttributes(params);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false);
+        }
+    }
+
+    private void applyImmersiveDisplay() {
+        configureFullScreenWindow();
+        Window window = getWindow();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             WindowInsetsController controller = window.getInsetsController();
             if (controller != null) {
                 controller.setSystemBarsBehavior(
