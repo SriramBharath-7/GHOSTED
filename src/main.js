@@ -414,7 +414,52 @@ function cloudMerge(base,local,remote){
  const dates=(p,k)=>Object.keys(p[k]||{}).filter(d=>!cloudEqual(base[k]?.[d],p[k][d]));
  const localLedger=dates(local,'rewardLedger'),remoteLedger=dates(remote,'rewardLedger');
  const ld=new Set([...dates(local,'days'),...localLedger]);
- for(const d of [...dates(remote,'days'),...remoteLedger])if(ld.has(d))conflicts.push('daily-record:'+d);
+ for(const d of [...dates(remote,'days'),...remoteLedger]) {
+  if(ld.has(d) && (!cloudEqual(local.days?.[d],remote.days?.[d]) || !cloudEqual(local.rewardLedger?.[d],remote.rewardLedger?.[d])))
+   conflicts.push('daily-record:'+d);
+ }
+ // Independent completion additions on the same date can be merged only if
+ // both reward ledger deltas are exactly explained by disjoint award entries.
+ // Never infer an undo, changed reward, or Perfect Day bonus.
+ for(const day of new Set([...dates(local,'days'),...dates(remote,'days')])){
+  if(!dates(local,'days').includes(day)||!dates(remote,'days').includes(day))continue;
+  const bday=base.days?.[day]||[], lday=local.days?.[day], rday=remote.days?.[day];
+  if(!Array.isArray(bday)||!Array.isArray(lday)||!Array.isArray(rday))continue;
+  if([bday,lday,rday].some(a=>a.length!==new Set(a).size))continue;
+  const common=new Set(bday);
+  if(bday.some(id=>!lday.includes(id)||!rday.includes(id)))continue;
+  const left=lday.filter(id=>!common.has(id)),right=rday.filter(id=>!common.has(id));
+  if(!left.length||!right.length||left.some(id=>right.includes(id)))continue;
+  if(!cloudEqual(local.mildDays?.[day],base.mildDays?.[day])||!cloudEqual(remote.mildDays?.[day],base.mildDays?.[day]))continue;
+  const br=base.rewardLedger?.[day]||{xp:0,coins:0,bonus:false,awards:{}};
+  const lr=local.rewardLedger?.[day],rr=remote.rewardLedger?.[day];
+  if(!lr||!rr||br.bonus||lr.bonus||rr.bonus)continue;
+  const extras=({xp,coins,awards,...other})=>other;
+  if(!cloudEqual(extras(br),extras(lr))||!cloudEqual(extras(br),extras(rr)))continue;
+  const additions=(row,ids)=>{
+   if(!row.awards||!cloudPlain(row.awards)||!Number.isSafeInteger(row.xp)||!Number.isSafeInteger(row.coins))return null;
+   for(const [key,value] of Object.entries(br.awards||{}))if(!cloudEqual(row.awards[key],value))return null;
+   const added={};let xp=0,coins=0;
+   for(const [key,value] of Object.entries(row.awards)){
+    if(Object.hasOwn(br.awards||{},key))continue;
+    if(!ids.some(id=>String(id)===key)||!value||!Number.isSafeInteger(value.xp)||value.xp<0||!Number.isSafeInteger(value.coins)||value.coins<0)return null;
+    added[key]=value;xp+=value.xp;coins+=value.coins;
+   }
+   if(!Number.isSafeInteger(xp)||!Number.isSafeInteger(coins)||row.xp-br.xp!==xp||row.coins-br.coins!==coins)return null;
+   return {added,xp,coins};
+  };
+  const la=additions(lr,left),ra=additions(rr,right);
+  if(!la||!ra)continue;
+  const xp=br.xp+la.xp+ra.xp,coins=br.coins+la.coins+ra.coins;
+  if(!Number.isSafeInteger(xp)||!Number.isSafeInteger(coins))continue;
+  result.days=result.days||{};
+  result.days[day]=[...new Set([...bday,...left,...right])].sort((a,b)=>a-b);
+  result.rewardLedger=result.rewardLedger||{};
+  result.rewardLedger[day]={...br,xp,coins,awards:{...(br.awards||{}),...la.added,...ra.added}};
+  for(let j=conflicts.length-1;j>=0;j--){
+   if(conflicts[j]==='days.'+day||conflicts[j].startsWith('rewardLedger.'+day+'.')||conflicts[j]==='rewardLedger.'+day||conflicts[j]==='daily-record:'+day)conflicts.splice(j,1);
+  }
+ }
  const rewards=['days','rewardLedger','mildDays'];
  const policy=['protocolEdits','scheduleHistory','customProtocols'];
  const spending=['purchased','purchaseRecords','redemptions','customMarketItems','legacyMarketItems'];
