@@ -97,17 +97,17 @@ jobs:
         run: |
           npm run build
 
-          test -s dist/index.html
-          test -s dist/js/ghosted-01.js
-          test -s dist/js/ghosted-03.js
-          test -s dist/css/ghosted-01.css
-          test -s dist/assets/ranks/rank_001.png
-          test -s dist/assets/divisions/division_01.png
-          test -s dist/assets/frames/terminal_frame_01.png
+          test -s dist-mobile/index.html
+          test -s dist-mobile/js/ghosted-01.js
+          test -s dist-mobile/js/ghosted-03.js
+          test -s dist-mobile/css/ghosted-01.css
+          test -s dist-mobile/assets/ranks/rank_001.png
+          test -s dist-mobile/assets/divisions/division_01.png
+          test -s dist-mobile/assets/frames/terminal_frame_01.png
           echo 'Web assets verified:'
-          du -sh dist
+          du -sh dist-mobile
 
-      - name: Prepare Capacitor Android project
+      - name: Run offline mobile isolation tests\n        run: npm run test:mobile\n\n      - name: Prepare Capacitor Android project
         shell: bash
         run: |
           if [ -f android/gradlew ]; then
