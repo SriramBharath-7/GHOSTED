@@ -1,6 +1,6 @@
 {
   "appId": "com.ghosted.operator",
   "appName": "GHOSTED",
-  "webDir": "dist",
+  "webDir": "dist-mobile",
   "backgroundColor": "#000000"
 }
