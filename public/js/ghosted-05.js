@@ -2050,5 +2050,26 @@ function startBoot(force=false){const el=$('#boot-screen');if(!el)return;bootHan
 $('#skip-boot').addEventListener('click',finishBoot);
 startBoot();
 setTimeout(()=>{if(window.matchMedia('(pointer:fine)').matches)command.focus({preventScroll:true})},100);
+// V7.9: accept a validated cloud snapshot without replaying the terminal boot.
+// Defer while a dialog or an in-progress command could be disrupted.
+function ghostedCanApplyCloud() {
+ const overlay=document.getElementById('overlay');
+ if(storageCorrupt||(overlay&&!overlay.classList.contains('hidden')))return false;
+ const active=document.activeElement;
+ if(active&&active.matches('textarea, select, [contenteditable="true"], input:not(#command)'))return false;
+ if(command&&command.value.trim())return false;
+ return true;
+}
+window.GHOSTED_CAN_APPLY_CLOUD_PROFILE=ghostedCanApplyCloud;
+window.GHOSTED_APPLY_CLOUD_PROFILE=(raw)=>{
+ if(!ghostedCanApplyCloud())return false;
+ const profile=JSON.parse(raw);
+ if(!validState(profile)||profile.schemaVersion!==4||profile.isSample===true)throw Error('Invalid cloud profile; local state preserved');
+ const scroll=viewport.scrollTop;
+ if(!saveRestored(profile))throw Error('Cloud profile could not be saved; local state preserved');
+ render();
+ viewport.scrollTop=scroll;
+ return true;
+};
 window.GHOSTED_DEBUG={run,service,done,xpAt,levelAt,eligible,full,validDate,backupPackage,restorePackage,hardwareEffect,hardwareAnimation,getState:()=>JSON.parse(JSON.stringify(state)),reset:()=>{storageCorrupt=false;state=upgradeState(initial());STORE=defaultCatalog.map(x=>({...x}));save();resetUI();}};
 })();
