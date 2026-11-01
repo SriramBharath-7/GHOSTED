@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { openFlawlessPanel } from './flawless-ui.js';
 import { CapacitorSQLite } from '@capacitor-community/sqlite';
 
 // GHOSTED V7.1 â€” Android SQLite mirror and recovery layer.
@@ -399,6 +400,7 @@ function cloudRemember(profile,revision){
  if(localStorage.getItem(CLOUD_SYNC_BASELINE)!==raw)throw Error('Baseline was not saved');
  localStorage.setItem(CLOUD_REVISION_KEY,String(revision));
  localStorage.setItem(CLOUD_SYNC_HASH,stableProfile(profile));
+ cloudSync.lastSuccess=new Date().toISOString();cloudSync.failures=0;
 }
 function cloudMerge(base,local,remote){
  const conflicts=[];
@@ -558,6 +560,117 @@ async function resumeCloudSyncSafely(){
  cloudSyncTimer=setInterval(()=>{void syncCycle();},15000);
  localStorage.setItem(CLOUD_SYNC_ARMED,'1');
  return syncCycle();
+}
+
+
+let v8BackupVerified=false;
+async function restartFlawlessSync(){
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)){
+  cloudSync.mode='conflict-protected';
+  return {needsDecision:true,reason:'A conflict needs your decision. Save both copies first.'};
+ }
+ if(cloudSync.busy){
+  for(const task of activeCloudRequests)task.abort();
+  return {retrying:true,reason:'Current request stopping. Next cycle will verify the server before retrying.'};
+ }
+ return resumeCloudSyncSafely();
+}
+async function flawlessDiagnostics(){
+ const d={
+  mode:cloudSync.mode,online:navigator.onLine,enabled:cloudSync.enabled,
+  busy:cloudSync.busy,failures:cloudSync.failures,
+  lastSuccess:cloudSync.lastSuccess,lastCheck:cloudSync.lastCheck,
+  lastError:cloudSync.lastError,
+  cloudRevision:localStorage.getItem(CLOUD_REVISION_KEY),
+  trustedBaseline:!!cloudBase(),conflict:cloudConflictStatus(),
+  pendingJournal:window.GHOSTED_SYNC_JOURNAL_STATUS?.()||null
+ };
+ if(cloudSession&&navigator.onLine){
+  try{d.remote=(await cloudInspect()).revision;d.serverReachable=true;}
+  catch(error){d.serverReachable=false;d.serverError=String(error);}
+ }
+ return d;
+}
+async function resolveFlawlessConflict(choice){
+ if(!['device','cloud','combine'].includes(choice))throw Error('Unknown resolution choice');
+ if(!v8BackupVerified)throw Error('Export both copies and verify the recovery file first');
+ if(cloudSync.busy)throw Error('Current cloud request has not finished');
+ const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+ if(!raw)throw Error('No conflict is awaiting a decision');
+ const saved=JSON.parse(raw);
+ const local=validateCloudRecoveryProfile(saved.local);
+ const remote=validateCloudRecoveryProfile(saved.remote);
+ const localRaw=localStorage.getItem(CLOUD_STORAGE_KEY);
+ if(!localRaw||!cloudEqual(JSON.parse(localRaw),local))
+  throw Error('Local progress changed since conflict capture. Nothing overwritten; export the current profile too.');
+ const session=await requireCloudSession();
+ const latest=await cloudReadSnapshot();
+ const changed=Number(latest.revision)!==Number(saved.revision)||!cloudEqual(latest.payload,remote);
+ if(changed){
+  // Recover from a successful CAS that lost its response, without reuploading.
+  if(choice==='device'&&cloudEqual(latest.payload,local)){
+   cloudRemember(local,Number(latest.revision));
+   localStorage.removeItem(CLOUD_SYNC_CONFLICT);v8BackupVerified=false;
+   document.getElementById('ghosted-cloud-conflict')?.remove();
+   return {ok:true,note:'Previously committed device profile verified; sync state recovered'};
+  }
+  throw Error('Cloud advanced since the saved conflict. No data replaced. Export and review a fresh comparison.');
+ }
+ let target=local;
+ if(choice==='combine'){
+  const base=cloudBase();
+  if(!base)throw Error('No trustworthy common ancestor. Automatic merge is not safe.');
+  const candidate=cloudMerge(base,local,remote);
+  if(!candidate.ok)throw Error('Changes require a manual choice: '+candidate.conflicts.join(', '));
+  if(!window.GHOSTED_RECONCILE_CLOUD_MERGE)throw Error('Reward rules are not loaded');
+  const reviewed=window.GHOSTED_RECONCILE_CLOUD_MERGE(candidate.profile,base,local,remote);
+  if(!reviewed?.ok)throw Error('Reward accounting needs review: '+String(reviewed?.reason));
+  target=validateCloudRecoveryProfile(reviewed.profile);
+ }
+ if(!window.confirm(choice==='cloud'
+   ?'KEEP CLOUD: Replace the public profile on THIS DEVICE? A verified recovery export is required. Vault is untouched.'
+   :'KEEP '+(choice==='device'?'DEVICE':'SAFE MERGE')+': Replace the public CLOUD profile using an exact revision check? A verified recovery export is required.'))
+  return {cancelled:true,note:'Cancelled. Both copies remain unchanged'};
+ if(choice==='cloud'){
+  const recovery=JSON.stringify({format:'GHOSTED_V8_BEFORE_OPERATOR_CHOICE',createdAt:new Date().toISOString(),profile:local});
+  localStorage.setItem(CLOUD_SYNC_RECOVERY,recovery);
+  if(localStorage.getItem(CLOUD_SYNC_RECOVERY)!==recovery)throw Error('Local recovery backup could not be verified');
+  if(!window.GHOSTED_CAN_APPLY_CLOUD_PROFILE?.()||!updateCloudView(remote,localRaw))
+   throw Error('Finish current editing; cloud data was not applied');
+  cloudRemember(remote,Number(latest.revision));
+ }else{
+  const newRevision=Number(await cloudRequest('/rest/v1/rpc/ghosted_put_snapshot',{
+   method:'POST',token:session.accessToken,
+   body:{p_storage_key:CLOUD_STORAGE_KEY,p_payload:target,p_expected_revision:Number(latest.revision)}
+  }));
+  if(newRevision!==Number(latest.revision)+1)throw Error('Unexpected cloud revision');
+  // On a timeout the remote may already contain target. Reopen recovery to verify it.
+  if(choice==='combine'&&!updateCloudView(target,localRaw))
+   throw Error('Cloud accepted merged profile but local editor is busy. Close it and review recovery again.');
+  cloudRemember(target,newRevision);
+ }
+ localStorage.removeItem(CLOUD_SYNC_CONFLICT);v8BackupVerified=false;
+ document.getElementById('ghosted-cloud-conflict')?.remove();
+ cloudSync.mode='resolved';cloudSync.lastError=null;
+ cloudNotice('SYNC RECOVERED // NO REBOOT');
+ return {ok:true,note:'Operator decision applied safely. Use Restart Sync to resume.'};
+}
+function flawlessPanel(){
+ v8BackupVerified=false;
+ return openFlawlessPanel({
+  status:()=>({
+   mode:cloudSync.mode,online:navigator.onLine,
+   pending:window.GHOSTED_SYNC_JOURNAL_STATUS?.().pending??'UNKNOWN',
+   revision:localStorage.getItem(CLOUD_REVISION_KEY),
+   lastSuccess:cloudSync.lastSuccess,lastError:cloudSync.lastError,
+   conflict:!!localStorage.getItem(CLOUD_SYNC_CONFLICT)
+  }),
+  restart:restartFlawlessSync,diagnostics:flawlessDiagnostics,
+  exportProfile:()=>{cloudDownloadLocalBackup(localStorage.getItem(CLOUD_STORAGE_KEY));return {note:'Verify public backup in Downloads'};},
+  exportConflict:()=>exportCloudConflict(),
+  setBackupVerified:checked=>{v8BackupVerified=!!checked;},
+  resolve:resolveFlawlessConflict
+ });
 }
 
 function stopCloudSync(reason = 'disabled') {
@@ -843,6 +956,10 @@ window.GHOSTED_CLOUD = Object.freeze({
   conflictStatus: cloudConflictStatus,
   exportConflict: exportCloudConflict,
   resumeSync: resumeCloudSyncSafely,
+  restartEngine: restartFlawlessSync,
+  openControlCenter: flawlessPanel,
+  diagnostics: flawlessDiagnostics,
+  resolveConflict: resolveFlawlessConflict,
   previewRestore: cloudPreviewRestore,
   restore: cloudRestore,
   status: () => ({ ...cloudState, sessionActive: !!cloudSession && cloudSession.expiresAt > Date.now() + 30000, automaticSync: cloudSync.enabled }),
