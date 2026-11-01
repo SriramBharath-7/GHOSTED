@@ -1,0 +1,46 @@
+name: GHOSTED - Website Cloud Contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-v8-db-contract:
+    name: Verify V8 idempotent RPC on disposable Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ghosted_test_only
+          POSTGRES_DB: ghosted_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ghosted_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: ghosted_test_only
+      PGDATABASE: ghosted_test
+    steps:
+      - name: Check out GHOSTED
+        uses: actions/checkout@v4
+      - name: Ensure PostgreSQL client is available
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+      - name: Verify transactional receipt migration, CAS, access control, and idempotency
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql-contract.setup.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261101_v8_idempotent_receipts.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql-contract.verify.sql
