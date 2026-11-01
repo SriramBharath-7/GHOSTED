@@ -213,7 +213,18 @@ function refreshCustomRegistry(){PROTOCOLS=[...BUILTIN_PROTOCOLS.map(x=>({...x})
 refreshCustomRegistry();
 function save(){
  if(storageCorrupt){persisted=false;return false;}
- try{localStorage.setItem(STORAGE,JSON.stringify(state));window.GHOSTED_NATIVE_DB?.mirror(STORAGE,localStorage.getItem(STORAGE));persisted=true;return true}catch{persisted=false;return false;}
+ try{
+  const oldRaw=localStorage.getItem(STORAGE),newRaw=JSON.stringify(state);
+  const operation=window.GHOSTED_SYNC_PREPARE_PUBLIC_WRITE?.(oldRaw,newRaw);
+  localStorage.setItem(STORAGE,newRaw);
+  // Local profile is the immediate authority; an interrupted journal commit is
+  // repaired by comparing the saved profile on the next launch.
+  try{window.GHOSTED_SYNC_COMMIT_PUBLIC_WRITE?.(operation);}catch(error){console.warn('[GHOSTED] Operation journal commit pending repair',error);}
+  window.GHOSTED_NATIVE_DB?.mirror(STORAGE,newRaw);
+  persisted=true;
+  if(operation)window.GHOSTED_SYNC_NOTIFY_PUBLIC_WRITE?.();
+  return true;
+ }catch(error){persisted=false;console.warn('[GHOSTED] Public profile write blocked; previous copy preserved',error);return false;}
 }
 function atomicChange(fn){
  const old=structuredClone(state);const before=service();
@@ -2107,7 +2118,11 @@ window.GHOSTED_APPLY_CLOUD_PROFILE=(raw)=>{
  const profile=JSON.parse(raw);
  if(!validState(profile)||profile.schemaVersion!==4||profile.isSample===true)throw Error('Invalid cloud profile; local state preserved');
  const scroll=viewport.scrollTop;
- if(!saveRestored(profile))throw Error('Cloud profile could not be saved; local state preserved');
+ let accepted=false;
+ window.GHOSTED_SYNC_APPLYING=true;
+ try{accepted=saveRestored(profile);}
+ finally{window.GHOSTED_SYNC_APPLYING=false;}
+ if(!accepted)throw Error('Cloud profile could not be saved; local state preserved');
  render();
  viewport.scrollTop=scroll;
  return true;
