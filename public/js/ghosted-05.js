@@ -317,7 +317,7 @@ function bootLines(){return `<div class="term-line"><span class="good">[OK]</spa
 <div class="term-line"><span class="good">[OK]</span> <span class="info">DOT-MATRIX OPERATOR SET LOADED (8 VARIANTS)</span></div>
 <div class="term-line"><span class="good">[OK]</span> <span class="info">100 ORIGINAL RANK BADGES + GHOST SOVEREIGN</span></div>
 <div class="term-line"><span class="${persisted?'good':'warn'}">[${persisted?'OK':'--'}]</span> <span class="info">BROWSER STORAGE ${persisted?'AVAILABLE':'UNAVAILABLE'}</span></div>
-<div class="term-line"><span class="warn">[INFO]</span> <span class="info">STANDALONE WEB PROFILE / NO ANDROID SYNC</span></div>
+<div class="term-line"><span class="warn">[INFO]</span> <span class="info">PUBLIC PROFILE / GUARDED CLOUD SYNC WHEN LINKED</span></div>
 <div class="term-line"><span class="good">[OK]</span> <span class="good bold">GHOSTED SESSION READY</span></div>`;}
 function home(){const s=service();const progress=(s.xp-s.prevLevelXp)/(s.nextLevelXp-s.prevLevelXp);return `
 <div class="v68-mobile-hide-boot">${sectionHead('SYSTEM / INITIALIZATION','REAL HISTORY // OFFLINE PERSONAL MODE')}${bootLines()}</div>
@@ -1432,7 +1432,7 @@ function settingsPage(){return `${sectionHead('SETTINGS / LOCAL OPERATOR','WEB A
  <div class="footer-actions">${action('[ TOGGLE SCANLINES ]','scanlines')}${action('[ TOGGLE SOUNDS ]','sounds')}${action('[ TEST SOUND ]','beep')}</div>
  ${sectionHead('PROFILE','DESTRUCTIVE OPERATIONS REQUIRE CONFIRMATION')}
  <div class="footer-actions">${action('[ RESET PUBLIC PROFILE ]','reset')}${action('[ SYSTEM ]','system')}</div>
- <div class="notice">Android reminders will use device notifications once the native application adapter is installed. In the standalone HTML build, reminders are visible only while open; Android and website data do not automatically synchronize.</div>`;}
+ <div class="notice">Android reminders depend on device permissions. Public profile cloud sync operates when configured, signed in and connected; queued offline changes retry. Private Vault stays local.</div>`;}
 
 function conceptsPage(){return `
 ${sectionHead('REFERENCE ARCHIVE / ORIGINAL CONCEPTS','10 APPROVED VISUAL SCREENS')}
