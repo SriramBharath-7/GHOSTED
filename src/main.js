@@ -483,6 +483,13 @@ async function syncCycle(){
    localStorage.setItem(CLOUD_SYNC_RECOVERY,backup);
    if(localStorage.getItem(CLOUD_SYNC_RECOVERY)!==backup)throw Error('Cannot preserve local recovery copy');
    if(!window.GHOSTED_CAN_APPLY_CLOUD_PROFILE?.())return {deferred:true,reason:'editing'};
+   if(merge && cloudEqual(next,remote.payload)){
+    // A previous CAS may already have committed this exact merged result.
+    if(!updateCloudView(next,original))return {deferred:true,reason:'editor-busy'};
+    cloudRemember(next,revision);
+    cloudSync.mode='merged';cloudSync.lastError=null;cloudNotice('CLOUD // MERGED');
+    return {downloadedRevision:revision};
+   }
    if(merge){
     // Avoid transient local overwrite if a concurrent remote write wins first.
     const latest=await cloudReadSnapshot();
