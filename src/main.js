@@ -451,6 +451,7 @@ function cloudRemember(profile,revision){
  localStorage.setItem(CLOUD_REVISION_KEY,String(revision));
  localStorage.setItem(CLOUD_SYNC_HASH,stableProfile(profile));
  cloudSync.lastSuccess=new Date().toISOString();cloudSync.failures=0;cloudSync.nextRetryAt=0;
+ document.getElementById('ghosted-sync-attention')?.remove();
  window.GHOSTED_SYNC_ACK_LOCAL?.(profile);
  v8AcknowledgeIntent(profile,revision);
 }
@@ -614,6 +615,22 @@ async function resumeCloudSyncSafely(){
  return syncCycle();
 }
 
+
+function cloudNeedsAttentionBanner(){
+ if(!document.body||document.getElementById('ghosted-sync-attention'))return;
+ const box=document.createElement('div');box.id='ghosted-sync-attention';
+ box.setAttribute('role','status');
+ box.style.cssText='position:fixed;z-index:10095;top:8px;right:8px;max-width:min(285px,calc(100vw - 16px));background:#07150f;color:#eac778;border:1px solid #9a7835;border-radius:6px;padding:8px 10px;font:11px/1.5 monospace;box-shadow:0 3px 16px #000b;';
+ const title=document.createElement('div');title.textContent='SYNC NEEDS ATTENTION';
+ const desc=document.createElement('div');desc.textContent='Your public progress remains local. Restart or diagnose sync in Settings.';
+ const open=document.createElement('button');open.type='button';open.textContent='[ OPEN CONTROL ]';
+ open.style.cssText='background:#10291c;color:#93f0b5;border:1px solid #37754e;margin-top:7px;padding:4px 6px;font:11px monospace;';
+ open.addEventListener('click',()=>{box.remove();flawlessPanel();});
+ const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='[ HIDE ]';
+ dismiss.style.cssText='background:transparent;color:#eac778;border:0;margin-left:5px;font:11px monospace;';
+ dismiss.addEventListener('click',()=>box.remove());
+ box.append(title,desc,open,dismiss);document.body.append(box);
+}
 
 let v8BackupVerified=false;
 async function restartFlawlessSync(){
@@ -844,6 +861,7 @@ async function syncCycle(){
   cloudSync.mode='needs-attention';cloudSync.enabled=false;
   if(cloudSyncTimer)clearInterval(cloudSyncTimer);cloudSyncTimer=null;
   cloudSync.lastError=reason;cloudNotice('SYNC NEEDS ATTENTION // OPEN SETTINGS');
+  cloudNeedsAttentionBanner();
   console.error('[GHOSTED cloud sync] Paused safely:',error);
   return {needsAttention:true,reason};
  }finally{cloudSync.busy=false;cloudSync.lastCheck=new Date().toISOString();}
