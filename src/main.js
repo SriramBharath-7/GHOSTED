@@ -714,12 +714,22 @@ function flawlessPanel(){
   status:()=>({
    mode:cloudSync.mode,online:navigator.onLine,
    pending:window.GHOSTED_SYNC_JOURNAL_STATUS?.().pending??'UNKNOWN',
+   serverMode:CLOUD_V8_RECEIPTS?'TRANSACTIONAL V8':'LEGACY CAS',
    revision:localStorage.getItem(CLOUD_REVISION_KEY),
    lastSuccess:cloudSync.lastSuccess,lastError:cloudSync.lastError,
    conflict:!!localStorage.getItem(CLOUD_SYNC_CONFLICT)
   }),
   restart:restartFlawlessSync,diagnostics:flawlessDiagnostics,
   exportProfile:()=>{cloudDownloadLocalBackup(localStorage.getItem(CLOUD_STORAGE_KEY));return {note:'Verify public backup in Downloads'};},
+  exportJournal:()=>{
+   const raw=publicJournal.export();
+   const blob=new Blob([raw],{type:'application/json'}),url=URL.createObjectURL(blob);
+   const link=document.createElement('a');
+   link.href=url;link.download='GHOSTED_PUBLIC_JOURNAL_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+   document.body.append(link);
+   try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+   return {note:'Verify public journal export in Downloads'};
+  },
   exportConflict:()=>exportCloudConflict(),
   setBackupVerified:checked=>{v8BackupVerified=!!checked;},
   resolve:resolveFlawlessConflict
