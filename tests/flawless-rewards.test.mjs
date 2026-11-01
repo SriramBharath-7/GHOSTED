@@ -58,12 +58,12 @@ test('future-day reward merges are not credited',()=>{
 
 test('different offline reward dates with shared quota are blocked instead of double-paid',()=>{
  const b=copy(baseline),l=copy(baseline),r=copy(baseline),combined=copy(baseline);
- b.days['2026-11-02']=[];b.rewardLedger['2026-11-02']={xp:0,coins:0,bonus:false,awards:{}};
- l.days['2026-11-01']=[2];l.rewardLedger['2026-11-01']={xp:20,coins:8,bonus:false,awards:{2:{xp:20,coins:8}}};
- r.days['2026-11-02']=[2];r.rewardLedger['2026-11-02']={xp:20,coins:8,bonus:false,awards:{2:{xp:20,coins:8}}};
- combined.days['2026-11-01']=[2];combined.days['2026-11-02']=[2];
- combined.rewardLedger['2026-11-01']=l.rewardLedger['2026-11-01'];
- combined.rewardLedger['2026-11-02']=r.rewardLedger['2026-11-02'];
+ b.days['2026-10-31']=[];b.rewardLedger['2026-10-31']={xp:0,coins:0,bonus:false,awards:{}};
+ l.days['2026-10-31']=[2];l.rewardLedger['2026-10-31']={xp:20,coins:8,bonus:false,awards:{2:{xp:20,coins:8}}};
+ r.days['2026-11-01']=[2];r.rewardLedger['2026-11-01']={xp:20,coins:8,bonus:false,awards:{2:{xp:20,coins:8}}};
+ combined.days['2026-10-31']=[2];combined.days['2026-11-01']=[2];
+ combined.rewardLedger['2026-10-31']=l.rewardLedger['2026-10-31'];
+ combined.rewardLedger['2026-11-01']=r.rewardLedger['2026-11-01'];
  const result=reviewer([1,2],['2@2026-11-02'])(combined,b,l,r);
  assert.equal(result.ok,false);assert.match(result.reason,/quota/);
 });
