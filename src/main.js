@@ -862,6 +862,17 @@ function flawlessPanel(){
    return {note:'Verify public journal export in Downloads'};
   },
   exportConflict:()=>exportCloudConflict(),
+  recoveryText:()=>{
+   const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+   if(!raw)throw Error('No protected conflict to copy');
+   const recovered={
+    format:'GHOSTED_V8_1_MANUAL_RECOVERY_COPY',
+    exportedAt:new Date().toISOString(),
+    conflict:JSON.parse(raw),
+    currentAndroid:validateCloudRecoveryProfile(JSON.parse(localStorage.getItem(CLOUD_STORAGE_KEY)||'null'))
+   };
+   return JSON.stringify(recovered,null,2);
+  },
   setBackupVerified:checked=>{v8BackupVerified=!!checked;},
   preview:cloudConflictPreview,
   refreshConflict:refreshProtectedConflict,
