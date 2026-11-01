@@ -16,10 +16,10 @@ export default defineConfig(({ mode }) => ({
         // The real V7.1.4 native fullscreen window needs a matching WebView
         // viewport that may occupy Android's camera-cutout area.
         // Keep the website's original viewport unchanged.
-        return mobileHtml.replace(
-          'content="width=device-width,initial-scale=1.0" name="viewport"',
-          'content="width=device-width,initial-scale=1.0,viewport-fit=cover" name="viewport"'
-        );
+        const before = 'width=device-width,initial-scale=1.0" name="viewport"';
+        if (!mobileHtml.includes(before)) throw Error('Android viewport tag missing');
+        return mobileHtml.replace(before,
+          'width=device-width,initial-scale=1.0,viewport-fit=cover" name="viewport"');
       }
     }
   }] : [],
