@@ -178,7 +178,10 @@ function v8WriteIntent(payload) {
  if(existing?.hash===hash&&existing.expected===expected&&existing.storageKey===CLOUD_STORAGE_KEY)
   return existing.id;
  const id=crypto.randomUUID();
- const intent={id,expected,hash,storageKey:CLOUD_STORAGE_KEY,createdAt:new Date().toISOString()};
+ const localAtWrite=localStorage.getItem(CLOUD_STORAGE_KEY);
+ if(!localAtWrite)throw Error('No local public profile for upload intent');
+ const localHash=stableProfile(validateCloudRecoveryProfile(JSON.parse(localAtWrite)));
+ const intent={id,expected,hash,localHash,storageKey:CLOUD_STORAGE_KEY,createdAt:new Date().toISOString()};
  const serialized=JSON.stringify(intent);
  localStorage.setItem(CLOUD_V8_INTENT,serialized);
  if(localStorage.getItem(CLOUD_V8_INTENT)!==serialized)
@@ -791,6 +794,24 @@ async function syncCycle(){
   const localDirty=!cloudEqual(local,JSON.parse(hash));
   const remoteDirty=revision!==ack;
   const base=cloudBase();
+  // An upload may have committed before Android received its acknowledgment.
+  // Accept a matching durable intent only if no later local edit happened.
+  if(CLOUD_V8_RECEIPTS&&remoteDirty&&localDirty){
+   const intent=JSON.parse(localStorage.getItem(CLOUD_V8_INTENT)||'null');
+   if(intent?.storageKey===CLOUD_STORAGE_KEY&&intent.hash===stableProfile(remote.payload)){
+    if(intent.localHash!==stableProfile(local)){
+     saveCloudConflict(local,remote.payload,revision,['Server committed; newer local edits need reconciliation']);
+     return {conflict:true,reason:'newer-local-edits-preserved'};
+    }
+    const backup=JSON.stringify({format:'GHOSTED_V8_LOST_ACK_RECOVERY',createdAt:new Date().toISOString(),profile:local,revision:ack});
+    localStorage.setItem(CLOUD_SYNC_RECOVERY,backup);
+    if(localStorage.getItem(CLOUD_SYNC_RECOVERY)!==backup)throw Error('Lost-ack recovery backup not verified');
+    if(!updateCloudView(remote.payload,original))return {deferred:true,reason:'editor-busy-after-accepted-upload'};
+    cloudRemember(remote.payload,revision);
+    cloudSync.mode='acknowledgment-recovered';cloudNotice('CLOUD // UPLOAD VERIFIED');
+    return {recoveredAcknowledgment:true,revision};
+   }
+  }
   if(!remoteDirty&&!cloudEqual(remote.payload,JSON.parse(hash)))throw Error('Cloud baseline mismatch');
   let next=null,merge=false;
   if(localDirty&&remoteDirty){
