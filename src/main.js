@@ -816,8 +816,14 @@ async function syncCycle(){
    const intent=JSON.parse(localStorage.getItem(CLOUD_V8_INTENT)||'null');
    if(intent?.storageKey===CLOUD_STORAGE_KEY&&intent.hash===stableProfile(remote.payload)){
     if(intent.localHash!==stableProfile(local)){
-     saveCloudConflict(local,remote.payload,revision,['Server committed; newer local edits need reconciliation']);
-     return {conflict:true,reason:'newer-local-edits-preserved'};
+     // The server contains exactly the snapshot this device previously sent.
+     // Local edits made after that upload remain authoritative here. Advance
+     // the trusted baseline to the verified server snapshot WITHOUT replacing
+     // the current local state; a subsequent cycle uploads the newer edits.
+     cloudRemember(remote.payload,revision);
+     cloudSync.mode='upload-ack-recovered-newer-local';
+     cloudNotice('CLOUD // UPLOAD VERIFIED; LOCAL CHANGES QUEUED');
+     return {retry:true,reason:'verified-previous-upload-newer-local-preserved'};
     }
     const backup=JSON.stringify({format:'GHOSTED_V8_LOST_ACK_RECOVERY',createdAt:new Date().toISOString(),profile:local,revision:ack});
     localStorage.setItem(CLOUD_SYNC_RECOVERY,backup);
