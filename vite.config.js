@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
         // viewport that may occupy Android's camera-cutout area.
         // Keep the website's original viewport unchanged.
         return mobileHtml.replace(
-          /(<meta\\s+content="width=device-width,initial-scale=1\\.0"\\s+name="viewport"\\s*\\/>)/i,
-          '<meta content="width=device-width,initial-scale=1.0,viewport-fit=cover" name="viewport"/>'
+          'content="width=device-width,initial-scale=1.0" name="viewport"',
+          'content="width=device-width,initial-scale=1.0,viewport-fit=cover" name="viewport"'
         );
       }
     }
