@@ -24,6 +24,7 @@ export function openFlawlessPanel(api) {
    'NETWORK: '+(s.online?'ONLINE':'OFFLINE'),
    'PENDING: '+String(s.pending??'UNKNOWN'),
    'CLOUD REV: '+String(s.revision||'NOT LINKED'),
+   'SERVER: '+String(s.serverMode||'LEGACY CAS'),
    'LAST SYNC: '+String(s.lastSuccess||'NOT VERIFIED'),
    'CONFLICT: '+(s.conflict?'DECISION REQUIRED':'NONE'),
    ...(s.lastError?['ISSUE: '+String(s.lastError).slice(0,120)]:[])
@@ -45,6 +46,7 @@ export function openFlawlessPanel(api) {
  button('[ RESTART SYNC ]',api.restart);
  button('[ DIAGNOSTICS ]',async()=>({note:JSON.stringify(await api.diagnostics(),null,2)}));
  button('[ EXPORT PROFILE ]',api.exportProfile);
+ button('[ EXPORT JOURNAL ]',api.exportJournal);
  if(api.status().conflict){
   button('[ SAVE BOTH COPIES ]',api.exportConflict);
   const approval=document.createElement('label');
