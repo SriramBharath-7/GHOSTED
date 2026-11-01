@@ -643,6 +643,68 @@ function cloudNeedsAttentionBanner(){
  box.append(title,desc,open,dismiss);document.body.append(box);
 }
 
+
+function cloudConflictPreview(){
+ const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+ if(!raw)return null;
+ const saved=JSON.parse(raw);
+ const android=validateCloudRecoveryProfile(JSON.parse(localStorage.getItem(CLOUD_STORAGE_KEY)||'null'));
+ const website=validateCloudRecoveryProfile(saved.remote);
+ const count=p=>Object.values(p.days||{}).reduce((n,ids)=>n+(Array.isArray(ids)?ids.length:0),0);
+ const earned=(p,k)=>Object.values(p.rewardLedger||{}).reduce((n,row)=>n+(Number(row?.[k])||0),0)+(Number(p.historicalCareerSeed?.[k])||0);
+ const list=p=>new Set(Object.entries(p.days||{}).flatMap(([day,ids])=>Array.isArray(ids)?ids.map(id=>day+' // PROTOCOL '+id):[]));
+ const a=list(android),b=list(website);
+ const onlyA=[...a].filter(v=>!b.has(v)),onlyB=[...b].filter(v=>!a.has(v));
+ const differentDays=[...new Set([...Object.keys(android.days||{}),...Object.keys(website.days||{})])]
+  .filter(day=>!cloudEqual(android.days?.[day],website.days?.[day])).sort().reverse();
+ return {
+  revision:saved.revision,createdAt:saved.createdAt,
+  sourceLocalChanged:!cloudEqual(android,saved.local),
+  baselineTrusted:!!cloudBase(),
+  cloudMayHaveAdvanced:!!saved.cloudMayHaveAdvanced,
+  reasons:(saved.details||[]).slice(0,6).map(String),
+  android:{completions:count(android),xp:earned(android,'xp'),coins:earned(android,'coins')},
+  website:{completions:count(website),xp:earned(website,'xp'),coins:earned(website,'coins')},
+  onlyAndroid:onlyA.slice(-12),onlyWebsite:onlyB.slice(-12),
+  differentDateCount:differentDays.length,
+  firstDifferentDates:differentDays.slice(0,8),
+  note:'XP and coins are total earned, not available balances. Purchases and rewards still require validation.'
+ };
+}
+// Safe rebase of the comparison. Revisions of previous conflict copies remain
+// archived locally and in the exported bundle; neither actual profile is changed.
+async function refreshProtectedConflict(){
+ if(!v8BackupVerified)throw Error('First SAVE BOTH COPIES and verify the download in Downloads');
+ if(cloudSync.busy)throw Error('Finish the current cloud request before refreshing');
+ const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+ if(!raw)throw Error('No protected conflict');
+ const original=JSON.parse(raw);
+ const currentRaw=localStorage.getItem(CLOUD_STORAGE_KEY);
+ const current=validateCloudRecoveryProfile(JSON.parse(currentRaw||'null'));
+ const latest=await cloudReadSnapshot();
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)!==raw || localStorage.getItem(CLOUD_STORAGE_KEY)!==currentRaw)
+  throw Error('Local copies changed during refresh; nothing modified');
+ if(cloudEqual(original.local,current) && Number(original.revision)===Number(latest.revision)
+   &&cloudEqual(original.remote,latest.payload))
+  return {note:'Your protected comparison is already current. Review the differences and choose SAFE MERGE or a verified copy.'};
+ const history=Array.isArray(original.previousVersions)?original.previousVersions:[];
+ if(history.length>=6)throw Error('Recovery history is full. Export backups and request careful manual recovery.');
+ const prior={createdAt:original.createdAt,revision:original.revision,
+   local:original.local,remote:original.remote,details:original.details};
+ const next={...original,format:'GHOSTED_V8_1_PROTECTED_CONFLICT',
+  createdAt:new Date().toISOString(),revision:Number(latest.revision),
+  local:current,remote:validateCloudRecoveryProfile(latest.payload),
+  details:['Operator refreshed comparison after safely exporting earlier copies'],
+  previousVersions:[...history,prior]};
+ const data=JSON.stringify(next);
+ localStorage.setItem(CLOUD_SYNC_CONFLICT,data);
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)!==data)throw Error('Refreshed comparison not persisted; operation not confirmed');
+ v8BackupVerified=false;
+ cloudSync.mode='conflict-protected';
+ cloudNotice('COMPARISON UPDATED // EXPORT BOTH COPIES AGAIN');
+ return {refreshPanel:true,note:'Updated comparison includes current Android and newest cloud. The prior versions are archived. Export the refreshed bundle again before resolving.'};
+}
+
 let v8BackupVerified=false;
 async function restartFlawlessSync(){
  if(localStorage.getItem(CLOUD_SYNC_CONFLICT)){
@@ -785,6 +847,9 @@ function flawlessPanel(){
   },
   exportConflict:()=>exportCloudConflict(),
   setBackupVerified:checked=>{v8BackupVerified=!!checked;},
+  preview:cloudConflictPreview,
+  refreshConflict:refreshProtectedConflict,
+  reopen:flawlessPanel,
   resolve:resolveFlawlessConflict
  });
 }
