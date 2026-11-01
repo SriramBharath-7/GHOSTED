@@ -1395,6 +1395,9 @@ function settingsPage(){return `${sectionHead('SETTINGS / LOCAL OPERATOR','WEB A
  ${metric('SCANLINES',state.settings.scanlines?'ON':'OFF')}
  ${metric('BACKUP','VERSION 4 — PUBLIC DATA ONLY')}
  ${reminderSettingsHTML()}
+ ${sectionHead('CLOUD & SYNC','OPERATION FLAWLESS // RECOVERY CONTROL')}
+ <div class="muted">Review pending changes, restart synchronization without rebooting GHOSTED, and recover conflicting copies safely.</div>
+ ${action('[ OPEN SYNC CONTROL CENTER ]','synccenter')}
  ${sectionHead('DATABASE DIAGNOSTICS','NATIVE SQLITE CHECK')}
  <div class="muted">Android SQLite status and safe readback test. WebView storage may persist even when native SQLite is unavailable.</div>
  <div class="footer-actions">${action('[ CHECK DATABASE STATUS ]','dbstatus')}${action('[ TEST SQLITE WRITE / READ ]','dbtest')}</div>
@@ -1640,6 +1643,7 @@ function run(value,opts={}){let raw=String(value||'').trim();if(!raw)return;
  case '0':case 'system':case 'home':case 'back':case 'exit':section='system';break;
  case 'help':case '?':section='help';break;
  case 'status':section='status';break;
+ case 'synccenter':section='settings';setTimeout(()=>window.GHOSTED_CLOUD?.openControlCenter?.(),0);break;
  case 'dbstatus':{
   section='settings';
   const d=window.GHOSTED_NATIVE_DB?.status?.()||{platform:'browser',state:'bridge-unavailable',writes:0,lastError:null};
@@ -2060,6 +2064,43 @@ function ghostedCanApplyCloud() {
  if(command&&command.value.trim())return false;
  return true;
 }
+// V8: award Perfect Day exactly once after joining independently completed habits.
+// The app's saved schedules, including historical quota windows, are the authority.
+window.GHOSTED_RECONCILE_CLOUD_MERGE=(incoming,baseline,local,remote)=>{
+ const prepared=structuredClone(incoming),previous=state,checks=[];
+ try{
+  if(!validState(prepared))return {ok:false,reason:'Invalid merged profile'};
+  const days=new Set([...Object.keys(local.days||{}),...Object.keys(remote.days||{})]);
+  state=prepared;
+  for(const date of days){
+   const bothChanged=JSON.stringify(local.days?.[date])!==JSON.stringify(baseline.days?.[date])
+     &&JSON.stringify(remote.days?.[date])!==JSON.stringify(baseline.days?.[date]);
+   const combined=bothChanged
+     &&JSON.stringify(prepared.days?.[date])!==JSON.stringify(local.days?.[date])
+     &&JSON.stringify(prepared.days?.[date])!==JSON.stringify(remote.days?.[date]);
+   if(!combined)continue;
+   if(!validDate(date)||date>dateAgo(0))return {ok:false,reason:'Future reward date needs review'};
+   const row=prepared.rewardLedger?.[date];
+   if(!row||!Number.isSafeInteger(row.xp)||!Number.isSafeInteger(row.coins))
+     return {ok:false,reason:'Missing verified reward row for '+date};
+   // Use the exact same due-scope/Perfect Day calculation as normal execution.
+   const scope=perfectScope(date);
+   const perfect=full(date);
+   if(row.bonus&&!perfect)return {ok:false,reason:'Perfect Day scope changed on '+date};
+   if(perfect&&!row.bonus){
+    if(baseline.rewardLedger?.[date]?.bonus||local.rewardLedger?.[date]?.bonus||remote.rewardLedger?.[date]?.bonus)
+     return {ok:false,reason:'Ambiguous previous Perfect Day reward on '+date};
+    if(!Number.isSafeInteger(row.xp+50)||!Number.isSafeInteger(row.coins+20))
+     return {ok:false,reason:'Perfect Day reward overflow on '+date};
+    row.bonusScope=[...scope].sort((a,b)=>a-b);
+    row.bonus=true;row.xp+=50;row.coins+=20;
+    checks.push({date,addedXp:50,addedCoins:20});
+   }
+  }
+  return {ok:true,profile:prepared,adjustments:checks};
+ }catch(error){return {ok:false,reason:String(error)};}
+ finally{state=previous;}
+};
 window.GHOSTED_CAN_APPLY_CLOUD_PROFILE=ghostedCanApplyCloud;
 window.GHOSTED_APPLY_CLOUD_PROFILE=(raw)=>{
  if(!ghostedCanApplyCloud())return false;
