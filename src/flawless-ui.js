@@ -13,12 +13,32 @@ export function openFlawlessPanel(api) {
  title.textContent='GHOSTED // SYNC CONTROL';
  const status=document.createElement('pre');
  status.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;color:#d5e7da;font:11px/1.5 monospace;margin:0 0 12px';
+ const comparison=document.createElement('pre');
+ comparison.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;color:#d5e7da;font:11px/1.55 monospace;padding:8px;background:#10291c;border:1px solid #284f37;border-radius:4px;max-height:200px;overflow:auto;margin-bottom:10px';
  const message=document.createElement('pre');
  message.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;color:#e5c37a;font:11px/1.5 monospace;min-height:18px';
  const actions=document.createElement('div');
  actions.style.cssText='display:flex;flex-wrap:wrap;gap:7px';
  const refresh=()=>{
   const s=api.status();
+  if(s.conflict){
+   try{
+    const c=api.preview();
+    comparison.textContent=[
+     'CONFLICT // REVISION '+String(c?.revision??'?'),
+     'ANDROID: '+c.android.completions+' completions | '+c.android.xp+' XP earned | '+c.android.coins+' GC earned',
+     'WEBSITE: '+c.website.completions+' completions | '+c.website.xp+' XP earned | '+c.website.coins+' GC earned',
+     'ANDROID ONLY: '+(c.onlyAndroid.join(', ')||'none'),
+     'WEBSITE ONLY: '+(c.onlyWebsite.join(', ')||'none'),
+     'DIFFERENT DATES: '+c.differentDateCount,
+     'TRUSTED ANCESTOR: '+(c.baselineTrusted?'YES':'NO'),
+     ...(c.sourceLocalChanged?['WARNING: ANDROID CHANGED AFTER CONFLICT. REFRESH COMPARISON BEFORE RESOLVING.']:[]),
+     ...(c.reasons.length?['WHY PAUSED: '+c.reasons.join(' | ')]:[]),
+     c.note
+    ].join('\n');
+   }catch(error){comparison.textContent='Saved conflict needs diagnostics: '+String(error);}
+  }
+  comparison.style.display=s.conflict?'block':'none';
   status.textContent=[
    'ENGINE: '+String(s.mode||'OFF').toUpperCase(),
    'NETWORK: '+(s.online?'ONLINE':'OFFLINE'),
@@ -38,6 +58,8 @@ export function openFlawlessPanel(api) {
    try {
     const result=await handler();
     message.textContent=result?.note||result?.reason||(result?.needsDecision?'REVIEW CONFLICT BELOW':'OPERATION FINISHED');
+    if(result?.refreshPanel){mask.remove();api.reopen();return;}
+    if(result?.ok&&!api.status().conflict){mask.remove();return;}
    } catch(error){message.textContent='NOT APPLIED // '+String(error?.message||error);}
    finally {el.disabled=false;refresh();}
   });
@@ -50,15 +72,16 @@ export function openFlawlessPanel(api) {
  button('[ EXPORT JOURNAL ]',api.exportJournal);
  if(api.status().conflict){
   button('[ SAVE BOTH COPIES ]',api.exportConflict);
+  button('[ REFRESH COMPARISON ]',api.refreshConflict);
   const approval=document.createElement('label');
   approval.style.cssText='display:block;margin:10px 0;color:#e7c77a';
   const box=document.createElement('input');box.type='checkbox';
   box.addEventListener('change',()=>api.setBackupVerified(box.checked));
   approval.append(box,document.createTextNode(' I verified the downloaded recovery file'));
-  panel.append(title,status,actions,approval);
-  button('[ KEEP THIS DEVICE ]',()=>api.resolve('device'));
-  button('[ KEEP CLOUD ]',()=>api.resolve('cloud'));
-  button('[ TRY SAFE MERGE ]',()=>api.resolve('combine'));
+  panel.append(title,status,comparison,actions,approval);
+  button('[ KEEP THIS DEVICE (OVERWRITE CLOUD) ]',()=>api.resolve('device'));
+  button('[ KEEP CLOUD (REPLACE ANDROID) ]',()=>api.resolve('cloud'));
+  button('[ TRY SAFE MERGE BOTH ]',()=>api.resolve('combine'));
  }else{panel.append(title,status,actions);}
  const close=document.createElement('button');close.type='button';close.textContent='[ CLOSE ]';
  close.style.cssText='margin-top:12px;background:transparent;color:#b8dabf;border:0;padding:5px;font:11px monospace';
