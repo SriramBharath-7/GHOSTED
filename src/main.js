@@ -249,7 +249,7 @@ async function cloudUpload() {
   });
   if (!Number.isSafeInteger(Number(revision)) || Number(revision) < 1) throw new Error('Unexpected revision result');
   window.localStorage.setItem(CLOUD_REVISION_KEY, String(revision));
-  window.localStorage.setItem(CLOUD_SYNC_HASH, stableProfile(profile));
+  cloudRemember(profile, Number(revision));
   return { ok: true, uploadedRevision: Number(revision), note: 'Explicit upload finished; automatic sync is not enabled' };
 }
 
@@ -340,7 +340,7 @@ async function cloudRestore() {
     window.localStorage.setItem(CLOUD_STORAGE_KEY, newRaw);
     if (window.localStorage.getItem(CLOUD_STORAGE_KEY) !== newRaw) throw new Error('Local write readback mismatch');
     window.localStorage.setItem(CLOUD_REVISION_KEY, String(fresh.revision));
-    window.localStorage.setItem(CLOUD_SYNC_HASH, stableProfile(fresh.payload));
+    cloudRemember(fresh.payload, Number(fresh.revision));
     window.GHOSTED_NATIVE_DB?.mirror(CLOUD_STORAGE_KEY, newRaw);
   } catch (error) {
     if (originalRaw === null) window.localStorage.removeItem(CLOUD_STORAGE_KEY);
@@ -500,19 +500,20 @@ function cloudNotice(message){
 }
 function cloudConflictStatus(){
  const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
- if(!raw)return {saved:false,mode:cloudSync.mode,lastError:cloudSync.lastError};
+ if(!raw)return {active:cloudSync.mode==='conflict-protected',saved:false,mode:cloudSync.mode,lastError:cloudSync.lastError};
  try{
   const c=JSON.parse(raw);
-  return {saved:true,createdAt:c.createdAt,remoteRevision:c.revision,details:c.details,
+  return {active:cloudSync.mode==='conflict-protected',saved:true,createdAt:c.createdAt,remoteRevision:c.revision,details:c.details,
    localSavedDays:Object.keys(c.local?.days||{}).length,
    remoteSavedDays:Object.keys(c.remote?.days||{}).length,
    mode:cloudSync.mode,lastError:cloudSync.lastError};
- }catch{return {saved:true,corrupt:true,mode:cloudSync.mode};}
+ }catch{return {active:cloudSync.mode==='conflict-protected',saved:true,corrupt:true,mode:cloudSync.mode};}
 }
 function exportCloudConflict(){
  const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
  if(!raw)throw Error('No preserved conflict to export');
- const blob=new Blob([raw],{type:'application/json'});
+ const bundle=JSON.stringify({format:'GHOSTED_V79_CONFLICT_EXPORT',exportedAt:new Date().toISOString(),originalConflict:JSON.parse(raw),currentLocal:JSON.parse(localStorage.getItem(CLOUD_STORAGE_KEY)||'null')});
+ const blob=new Blob([bundle],{type:'application/json'});
  const url=URL.createObjectURL(blob);
  const link=document.createElement('a');
  link.href=url;
@@ -532,10 +533,13 @@ function cloudConflictBanner(){
  const save=document.createElement('button');save.type='button';save.textContent='SAVE BOTH';
  save.style.cssText='color:#8ef1bc;background:#092318;border:1px solid #296a4a;border-radius:4px;padding:4px 8px;font:inherit;';
  save.addEventListener('click',()=>{try{exportCloudConflict();cloudNotice('RECOVERY DOWNLOAD REQUESTED');}catch{cloudNotice('EXPORT FAILED — COPIES PRESERVED');}});
+ const retry=document.createElement('button');retry.type='button';retry.textContent='RECHECK';
+ retry.style.cssText='background:transparent;color:#8ef1bc;border:0;margin-left:6px;font:inherit;';
+ retry.addEventListener('click',()=>{retry.disabled=true;void resumeCloudSyncSafely().then(r=>{if(r.conflict)cloudNotice('STILL CONFLICTED — COPIES PRESERVED');else if(r.retrying)cloudNotice('WAITING FOR NETWORK');else cloudNotice('CLOUD RECHECKED');}).catch(()=>cloudNotice('RECHECK BLOCKED — COPIES SAFE')).finally(()=>{retry.disabled=false;});});
  const hide=document.createElement('button');hide.type='button';hide.textContent='HIDE';
  hide.style.cssText='background:transparent;color:#e8bd6e;border:0;margin-left:10px;font:inherit;';
  hide.addEventListener('click',()=>box.remove());
- box.append(title,desc,save,hide);document.body.append(box);
+ box.append(title,desc,save,retry,hide);document.body.append(box);
 }
 async function resumeCloudSyncSafely(){
  if(cloudSync.busy)return {busy:true};
