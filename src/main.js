@@ -914,6 +914,7 @@ async function syncCycle(){
 }
 
 async function enableCloudSync() {
+  if (localStorage.getItem(CLOUD_SYNC_CONFLICT))throw Error('Resolve or export the existing protected conflict first. Use Settings → Sync Control Center');
   if (!cloudState.configured) throw new Error('Supabase not configured in this build');
   const session = await requireCloudSession();
   if (session.userId !== CLOUD_OWNER_ID) throw new Error('Unexpected operator account');
@@ -961,6 +962,16 @@ function resumeCloudSession() {
 // Import cloud data BEFORE the legacy habit scripts initialize their own state.
 // Never overwrite existing local changes when provenance is uncertain.
 async function bootstrapCloudProfile() {
+  // Do not run any startup restore when an unresolved two-device conflict is
+  // preserved. The operator decision in Settings is the ONLY recovery path.
+  if (localStorage.getItem(CLOUD_SYNC_CONFLICT)) {
+    cloudSync.enabled=false;
+    cloudSync.mode='conflict-protected';
+    if(document.readyState==='loading')
+      document.addEventListener('DOMContentLoaded',cloudConflictBanner,{once:true});
+    else cloudConflictBanner();
+    return;
+  }
   if (!cloudState.configured || !navigator.onLine) return;
   const localRaw = localStorage.getItem(CLOUD_STORAGE_KEY);
   if (!cloudSession) {
