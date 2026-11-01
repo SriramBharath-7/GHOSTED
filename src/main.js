@@ -689,6 +689,22 @@ async function resolveFlawlessConflict(choice){
    document.getElementById('ghosted-cloud-conflict')?.remove();
    return {ok:true,note:'Previously committed device profile verified; sync state recovered'};
   }
+  if(choice==='combine'){
+   const base=cloudBase();
+   if(base&&window.GHOSTED_RECONCILE_CLOUD_MERGE){
+    const candidate=cloudMerge(base,local,remote);
+    if(candidate.ok){
+     const reviewed=window.GHOSTED_RECONCILE_CLOUD_MERGE(candidate.profile,base,local,remote);
+     if(reviewed?.ok&&cloudEqual(latest.payload,reviewed.profile)){
+      if(!updateCloudView(latest.payload,localRaw))throw Error('Merged upload was committed; finish editing and retry local acknowledgment');
+      cloudRemember(latest.payload,Number(latest.revision));
+      localStorage.removeItem(CLOUD_SYNC_CONFLICT);v8BackupVerified=false;
+      document.getElementById('ghosted-cloud-conflict')?.remove();
+      return {ok:true,note:'Previously committed merge verified and applied without duplicating rewards'};
+     }
+    }
+   }
+  }
   throw Error('Cloud advanced since the saved conflict. No data replaced. Export and review a fresh comparison.');
  }
  let target=local;
