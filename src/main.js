@@ -146,6 +146,7 @@ startGhosted().catch(error => {
 // GHOSTED V7.4: explicit, opt-in cloud snapshot testing. No background sync.
 const CLOUD_STORAGE_KEY = 'ghosted:web-os:personal:history:v68';
 const CLOUD_REVISION_KEY = 'ghosted:cloud:ack-revision:v1';
+const CLOUD_OWNER_ID = '9c63d03e-cafd-41bb-b753-72b05daa0710';
 const CLOUD_URL = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const CLOUD_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
 let cloudSession = null;
@@ -234,7 +235,110 @@ async function cloudUpload() {
   return { ok: true, uploadedRevision: Number(revision), note: 'Explicit upload finished; automatic sync is not enabled' };
 }
 
+
+
+// V7.5: opt-in readback and recovery; no background synchronization.
+function validateCloudRecoveryProfile(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+      || value.schemaVersion !== 4 || value.isSample === true
+      || !value.days || typeof value.days !== 'object' || Array.isArray(value.days)
+      || !Array.isArray(value.purchased)) {
+    throw new Error('Cloud snapshot fails GHOSTED profile validation');
+  }
+  for (const [day, ids] of Object.entries(value.days)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Array.isArray(ids)
+        || ids.some(id => !Number.isInteger(id) || id < 1 || id > 999)) {
+      throw new Error('Cloud snapshot contains invalid day history');
+    }
+  }
+  return value;
+}
+
+async function cloudReadSnapshot() {
+  const session = requireCloudSession();
+  if (session.userId !== CLOUD_OWNER_ID) throw new Error('Unexpected operator account');
+  const filter = encodeURIComponent(CLOUD_STORAGE_KEY);
+  const rows = await cloudRequest(`/rest/v1/ghosted_snapshots?storage_key=eq.${filter}&select=revision,updated_at,payload`, {
+    token: session.accessToken,
+  });
+  if (!Array.isArray(rows) || rows.length !== 1) throw new Error('Expected exactly one private cloud snapshot');
+  const row = rows[0];
+  if (!Number.isSafeInteger(Number(row.revision)) || Number(row.revision) < 1) throw new Error('Invalid remote revision');
+  validateCloudRecoveryProfile(row.payload);
+  return row;
+}
+
+async function cloudPreviewRestore() {
+  const remote = await cloudReadSnapshot();
+  const localRaw = window.localStorage.getItem(CLOUD_STORAGE_KEY);
+  let localDays = null;
+  if (localRaw !== null) {
+    try { localDays = Object.keys(JSON.parse(localRaw).days || {}).length; }
+    catch { localDays = 'unreadable'; }
+  }
+  return {
+    remoteRevision: Number(remote.revision),
+    updatedAt: remote.updated_at,
+    remoteSavedDays: Object.keys(remote.payload.days).length,
+    localSavedDays: localDays,
+    localProfileExists: localRaw !== null,
+    willReplaceLocalProfile: true,
+    vaultUntouched: true,
+    automaticSync: false,
+  };
+}
+
+function cloudDownloadLocalBackup(raw) {
+  const exportData = JSON.stringify({
+    format: 'GHOSTED_V7_5_PRE_RESTORE_LOCAL_COPY',
+    storageKey: CLOUD_STORAGE_KEY,
+    exportedAt: new Date().toISOString(),
+    profile: raw === null ? null : JSON.parse(raw),
+  });
+  const blob = new Blob([exportData], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `GHOSTED_PRE_RESTORE_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  document.body.append(link);
+  try { link.click(); }
+  finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); }
+}
+
+async function cloudRestore() {
+  const preview = await cloudPreviewRestore();
+  const originalRaw = window.localStorage.getItem(CLOUD_STORAGE_KEY);
+  if (!window.confirm(`GHOSTED CLOUD RECOVERY\nRemote revision: ${preview.remoteRevision}\nRemote saved days: ${preview.remoteSavedDays}\nLocal saved days: ${preview.localSavedDays}\nThis replaces ONLY the local public profile. Vault stays local. Continue to backup step?`)) {
+    return { ok: false, reason: 'Cancelled before backup' };
+  }
+  cloudDownloadLocalBackup(originalRaw);
+  const response = window.prompt('Check your Downloads folder for the PRE_RESTORE backup. Once you have verified the file exists, type RESTORE to replace the local public profile.');
+  if (response !== 'RESTORE') return { ok: false, reason: 'Backup confirmation not given; local data unchanged' };
+  const fresh = await cloudReadSnapshot();
+  if (Number(fresh.revision) !== preview.remoteRevision) throw new Error('Remote revision changed; restore cancelled');
+  if (window.localStorage.getItem(CLOUD_STORAGE_KEY) !== originalRaw) throw new Error('Local data changed during restore; cancelled');
+  const newRaw = JSON.stringify(fresh.payload);
+  try {
+    window.localStorage.setItem(CLOUD_STORAGE_KEY, newRaw);
+    if (window.localStorage.getItem(CLOUD_STORAGE_KEY) !== newRaw) throw new Error('Local write readback mismatch');
+    window.localStorage.setItem(CLOUD_REVISION_KEY, String(fresh.revision));
+    window.GHOSTED_NATIVE_DB?.mirror(CLOUD_STORAGE_KEY, newRaw);
+  } catch (error) {
+    if (originalRaw === null) window.localStorage.removeItem(CLOUD_STORAGE_KEY);
+    else window.localStorage.setItem(CLOUD_STORAGE_KEY, originalRaw);
+    throw error;
+  }
+  return {
+    ok: true,
+    restoredRevision: Number(fresh.revision),
+    savedDays: Object.keys(fresh.payload.days).length,
+    note: 'Local profile restored. RELOAD the page to load it into GHOSTED. Vault untouched; auto sync off.',
+  };
+}
+
 window.GHOSTED_CLOUD = Object.freeze({
+  previewRestore: cloudPreviewRestore,
+  restore: cloudRestore,
   status: () => ({ ...cloudState, sessionActive: !!cloudSession && cloudSession.expiresAt > Date.now() + 30000, automaticSync: false }),
   signIn: cloudSignIn,
   inspect: cloudInspect,
