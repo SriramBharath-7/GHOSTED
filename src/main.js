@@ -137,7 +137,7 @@ async function startGhosted() {
   }
 }
 
-startGhosted().catch(error => {
+const ghostedStartup = startGhosted().catch(error => {
   console.error('[GHOSTED] Startup failed:', error);
   status.state = 'startup-error';
   status.lastError = String(error);
@@ -179,21 +179,40 @@ async function cloudSignIn() {
       method: 'POST', body: { email, password },
     });
     if (!auth.access_token || !auth.user?.id) throw new Error('No authenticated session');
-    cloudSession = { accessToken: auth.access_token, userId: auth.user.id, expiresAt: Date.now() + auth.expires_in * 1000 };
+    cloudSession = { accessToken: auth.access_token, refreshToken: auth.refresh_token, userId: auth.user.id, expiresAt: Date.now() + auth.expires_in * 1000 };
     cloudState.signedIn = true;
     cloudState.lastError = null;
     try { sessionStorage.setItem("ghosted:cloud:session:v76", JSON.stringify(cloudSession)); } catch {}
-    return { ok: true, userId: cloudSession.userId, note: 'Session held in memory only; sign in again after reload' };
+    return { ok: true, userId: cloudSession.userId, note: 'Session stored only in this browser tab; signed in after reload while tab persists' };
   } catch (error) { cloudState.lastError = String(error); throw error; }
 }
 
-function requireCloudSession() {
-  if (!cloudSession || cloudSession.expiresAt <= Date.now() + 30000) throw new Error('Cloud session missing or expired; sign in again');
-  return cloudSession;
+let refreshingCloudSession = null;
+async function requireCloudSession() {
+  if (!cloudSession || cloudSession.userId !== CLOUD_OWNER_ID) throw new Error('Cloud session missing or unexpected operator; sign in again');
+  if (cloudSession.expiresAt > Date.now() + 60000) return cloudSession;
+  if (!cloudSession.refreshToken) throw new Error('Cloud session expired; sign in again');
+  if (!refreshingCloudSession) {
+    refreshingCloudSession = (async () => {
+      const old = cloudSession;
+      const auth = await cloudRequest('/auth/v1/token?grant_type=refresh_token', {
+        method: 'POST', body: { refresh_token: old.refreshToken },
+      });
+      if (auth.user?.id !== CLOUD_OWNER_ID || !auth.access_token || !auth.refresh_token) {
+        throw new Error('Cloud refresh returned unexpected operator or invalid session');
+      }
+      if (cloudSession !== old) throw new Error('Cloud session changed while refreshing');
+      cloudSession = { accessToken: auth.access_token, refreshToken: auth.refresh_token,
+        userId: auth.user.id, expiresAt: Date.now() + auth.expires_in * 1000 };
+      try { sessionStorage.setItem(CLOUD_SYNC_SESSION, JSON.stringify(cloudSession)); } catch {}
+      return cloudSession;
+    })().finally(() => { refreshingCloudSession = null; });
+  }
+  return refreshingCloudSession;
 }
 
 async function cloudInspect() {
-  const session = requireCloudSession();
+  const session = await requireCloudSession();
   const filter = encodeURIComponent(CLOUD_STORAGE_KEY);
   const rows = await cloudRequest(`/rest/v1/ghosted_snapshots?storage_key=eq.${filter}&select=revision,updated_at,storage_key`, {
     token: session.accessToken,
@@ -213,7 +232,7 @@ function cloudLocalProfile() {
 }
 
 async function cloudUpload() {
-  const session = requireCloudSession();
+  const session = await requireCloudSession();
   const profile = cloudLocalProfile();
   const remote = await cloudInspect();
   const acknowledged = window.localStorage.getItem(CLOUD_REVISION_KEY);
@@ -257,7 +276,7 @@ function validateCloudRecoveryProfile(value) {
 }
 
 async function cloudReadSnapshot() {
-  const session = requireCloudSession();
+  const session = await requireCloudSession();
   if (session.userId !== CLOUD_OWNER_ID) throw new Error('Unexpected operator account');
   const filter = encodeURIComponent(CLOUD_STORAGE_KEY);
   const rows = await cloudRequest(`/rest/v1/ghosted_snapshots?storage_key=eq.${filter}&select=revision,updated_at,payload`, {
@@ -366,7 +385,7 @@ async function syncCycle() {
   if (!cloudSync.enabled || cloudSync.busy || !navigator.onLine) return { skipped: true };
   cloudSync.busy = true;
   try {
-    const session = requireCloudSession();
+    const session = await requireCloudSession();
     if (session.userId !== CLOUD_OWNER_ID) throw new Error('Unexpected operator account');
     const acknowledged = Number(localStorage.getItem(CLOUD_REVISION_KEY));
     const baseline = localStorage.getItem(CLOUD_SYNC_HASH);
@@ -422,7 +441,7 @@ async function syncCycle() {
 
 async function enableCloudSync() {
   if (!cloudState.configured) throw new Error('Supabase not configured in this build');
-  const session = requireCloudSession();
+  const session = await requireCloudSession();
   if (session.userId !== CLOUD_OWNER_ID) throw new Error('Unexpected operator account');
   const local = cloudLocalProfile();
   const remote = await cloudReadSnapshot();
@@ -436,9 +455,7 @@ async function enableCloudSync() {
     throw new Error('Initial cloud/local profiles differ. Use previewRestore and manual recovery first');
   }
   if (Number(remote.revision) !== acknowledged) {
-    if (baseline && baseline === localHash) {
-      localStorage.setItem(CLOUD_SYNC_HASH, baseline);
-    } else throw new Error('Cloud revision differs; resolve manually before enabling sync');
+    if (!baseline || baseline !== localHash) throw new Error('Cloud revision differs and local changes exist; resolve manually');
   } else if (!baseline) localStorage.setItem(CLOUD_SYNC_HASH, localHash);
   if (!window.confirm('Enable guarded cloud sync for this browser session? It will auto-upload local changes and auto-download remote changes only when the other copy is unchanged. Conflicts halt sync. Vault is excluded.')) return { ok: false, reason: 'Cancelled' };
   cloudSync.enabled = true;
@@ -453,11 +470,11 @@ async function enableCloudSync() {
 
 try {
   const saved = JSON.parse(sessionStorage.getItem(CLOUD_SYNC_SESSION) || 'null');
-  if (saved?.userId === CLOUD_OWNER_ID && saved.expiresAt > Date.now() + 30000) {
+  if (saved?.userId === CLOUD_OWNER_ID && (saved.expiresAt > Date.now() + 30000 || saved.refreshToken)) {
     cloudSession = saved;
     cloudState.signedIn = true;
     if (sessionStorage.getItem(CLOUD_SYNC_ARMED) === '1') {
-      queueMicrotask(() => { void enableCloudSyncAfterReload(); });
+      void ghostedStartup.then(() => enableCloudSyncAfterReload());
     }
   }
 } catch {}
