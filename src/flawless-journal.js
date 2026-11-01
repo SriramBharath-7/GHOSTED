@@ -64,7 +64,8 @@ export class PublicJournal {
   if(after?.isSample||before?.isSample)return null; // Demo profiles are never cloud operations.
   if(after?.schemaVersion!==4)throw Error('Unsupported public profile; sync journal blocked');
   // Repair the last interrupted write before accepting another mutation.
-  this.repair(beforeRaw);
+  const repair=this.repair(beforeRaw);
+  if(repair.needsReview)throw Error('Unresolved interrupted public write; export journal and diagnose before editing');
   const record=this.read();
   if(record.events.length>=MAX_EVENTS)throw Error('Sync journal capacity reached; export recovery');
   const event={
