@@ -79,10 +79,30 @@ jobs:
           grep -q 'ghosted_launcher_foreground' android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
           echo 'GHOSTED launcher resources verified in Android project.'
 
+      - name: Restore persistent GHOSTED debug signing key
+        shell: bash
+        env:
+          GHOSTED_DEBUG_KEYSTORE_B64: ${{ secrets.GHOSTED_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [[ -z "$GHOSTED_DEBUG_KEYSTORE_B64" ]]; then
+            echo 'Missing Actions secret GHOSTED_DEBUG_KEYSTORE_B64'; exit 1
+          fi
+          mkdir -p "$HOME/.android"
+          printf '%s' "$GHOSTED_DEBUG_KEYSTORE_B64" | base64 --decode > "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
+          keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey > /dev/null
+          echo 'Persistent debug signing keystore restored.'
       - name: Compile installable debug APK
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
 
+      - name: Verify APK signature and show certificate fingerprint
+        shell: bash
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" verify --verbose --print-certs "$APK"
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | grep 'SHA256:'
       - name: Verify APK exists
         shell: bash
         run: |
