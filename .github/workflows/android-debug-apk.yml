@@ -45,9 +45,14 @@ jobs:
             npm install --no-audit --no-fund
           fi
 
+
       - name: Build offline GHOSTED web assets
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           npm run build
+
           test -s dist/index.html
           test -s dist/js/ghosted-01.js
           test -s dist/js/ghosted-03.js
