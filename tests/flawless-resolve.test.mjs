@@ -24,7 +24,7 @@ function setup({choiceApproved=true,cloud=remote,revision=8,localChanged=false,e
  let applications=0,confirmed=0;
  const ctx={
   localStorage,CLOUD_SYNC_CONFLICT:'conflict',CLOUD_STORAGE_KEY:'profile',CLOUD_SYNC_RECOVERY:'recovery',CLOUD_REVISION_KEY:'ack',
-  cloudSync:sync,document:{getElementById:()=>null},window:{confirm:()=>{confirmed++;return choiceApproved;},GHOSTED_RECONCILE_CLOUD_MERGE:()=>({ok:false,reason:'unsafe combination'})},
+  cloudSync:sync,document:{getElementById:()=>null},window:{confirm:()=>{confirmed++;return choiceApproved;},GHOSTED_CAN_APPLY_CLOUD_PROFILE:()=>true,GHOSTED_RECONCILE_CLOUD_MERGE:()=>({ok:false,reason:'unsafe combination'})},
   validateCloudRecoveryProfile:p=>{if(p.schemaVersion!==4)throw Error('invalid');return p;},
   cloudEqual:same,
   requireCloudSession:async()=>({accessToken:'t'}),
