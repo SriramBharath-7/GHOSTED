@@ -524,7 +524,36 @@ async function bootstrapCloudProfile() {
         localStorage.setItem(CLOUD_SYNC_HASH, remoteHash);
         window.GHOSTED_NATIVE_DB?.mirror(CLOUD_STORAGE_KEY, replacement);
       } else if (!baseline && localHash !== remoteHash) {
-        cloudSync.mode = 'needs-manual-reconciliation';
+        // A newly installed APK can contain seeded history but no cloud revision.
+        // Never silently upload that seed or overwrite unpublished local work.
+        const approved = window.confirm(
+          'GHOSTED has local progress but has not linked it to the cloud yet. ' +
+          'Use your verified Supabase profile on this device? A copy of the current ' +
+          'local profile will be retained for recovery. Cancel keeps local data unchanged.'
+        );
+        if (!approved) {
+          cloudSync.mode = 'needs-manual-reconciliation';
+        } else {
+          const recovery = JSON.stringify({
+            format: 'GHOSTED_V78_PRE_FIRST_LINK_RECOVERY',
+            createdAt: new Date().toISOString(),
+            profile: JSON.parse(currentRaw),
+          });
+          // Fail closed if the local backup cannot be saved or read back.
+          localStorage.setItem(CLOUD_SYNC_RECOVERY, recovery);
+          if (localStorage.getItem(CLOUD_SYNC_RECOVERY) !== recovery) {
+            throw new Error('Cannot verify local recovery backup; cloud link cancelled');
+          }
+          if (localStorage.getItem(CLOUD_STORAGE_KEY) !== currentRaw) {
+            throw new Error('Local profile changed during first cloud link; cancelled');
+          }
+          const replacement = JSON.stringify(remote.payload);
+          localStorage.setItem(CLOUD_STORAGE_KEY, replacement);
+          localStorage.setItem(CLOUD_REVISION_KEY, String(remoteRevision));
+          localStorage.setItem(CLOUD_SYNC_HASH, remoteHash);
+          window.GHOSTED_NATIVE_DB?.mirror(CLOUD_STORAGE_KEY, replacement);
+          cloudSync.mode = 'first-link-cloud-restored';
+        }
       }
     }
     if (localStorage.getItem(CLOUD_SYNC_HASH) && cloudSync.mode !== 'needs-manual-reconciliation') {
@@ -557,7 +586,19 @@ window.GHOSTED_CLOUD = Object.freeze({
   previewRestore: cloudPreviewRestore,
   restore: cloudRestore,
   status: () => ({ ...cloudState, sessionActive: !!cloudSession && cloudSession.expiresAt > Date.now() + 30000, automaticSync: cloudSync.enabled }),
-  signIn: async () => { const result = await cloudSignIn(); if (result.ok) await bootstrapCloudProfile(); return result; },
+  signIn: async () => {
+    const result = await cloudSignIn();
+    if (!result.ok) return result;
+    const before = localStorage.getItem(CLOUD_STORAGE_KEY);
+    await bootstrapCloudProfile();
+    // Refresh the in-memory habit engine only when cloud recovery changed its state.
+    // No reload is needed if this is the pre-script startup sign-in.
+    if (before !== localStorage.getItem(CLOUD_STORAGE_KEY)) {
+      await ghostedStartup;
+      window.location.reload();
+    }
+    return { ...result, sync: cloudSync.mode };
+  },
   inspect: cloudInspect,
   upload: cloudUpload,
   logout: () => { stopCloudSync(); cloudSession = null; cloudState.signedIn = false; try { localStorage.removeItem(CLOUD_SYNC_SESSION); } catch {} return { ok: true }; },
