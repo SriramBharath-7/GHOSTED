@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite } from '@capacitor-community/sqlite';
 
-// GHOSTED V7.1 — Android SQLite mirror and recovery layer.
+// GHOSTED V7.1 â€” Android SQLite mirror and recovery layer.
 // The existing synchronous WebView storage remains the immediate write path.
 // SQLite mirrors its values for native recovery; no XP calculations run here.
 const DB = 'ghosted_profile';
@@ -426,10 +426,23 @@ async function syncCycle() {
     cloudSync.mode = 'in-sync';
     return { inSync: true, revision: acknowledged };
   } catch (error) {
-    cloudSync.lastError = String(error);
+    const reason = String(error);
+    cloudSync.lastError = reason;
+
+    const temporary =
+      !navigator.onLine ||
+      error instanceof TypeError ||
+      /failed to fetch|networkerror|network request failed|fetch failed|timeout|HTTP 429|HTTP 5\d\d/i.test(reason);
+
+    if (temporary) {
+      cloudSync.mode = 'waiting-for-connection';
+      console.warn('[GHOSTED cloud sync] Will retry:', error);
+      return { retrying: true, reason };
+    }
+
     stopCloudSync('halted');
     console.error('[GHOSTED cloud sync] Halted safely:', error);
-    return { halted: true, reason: String(error) };
+    return { halted: true, reason };
   } finally {
     cloudSync.busy = false;
     cloudSync.lastCheck = new Date().toISOString();
@@ -570,6 +583,18 @@ async function bootstrapCloudProfile() {
     console.warn('[GHOSTED cloud] Local profile preserved:', error);
   }
 }
+
+window.addEventListener('online', () => {
+  if (cloudSync.enabled) void syncCycle();
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && cloudSync.enabled) void syncCycle();
+});
+
+window.addEventListener('focus', () => {
+  if (cloudSync.enabled) void syncCycle();
+});
 
 resumeCloudSession();
 ghostedStartup = startGhosted().catch(error => {
