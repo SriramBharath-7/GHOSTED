@@ -39,6 +39,18 @@ public class MainActivity extends BridgeActivity {
     private void configureFullScreenWindow() {
         Window window = getWindow();
         window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        // Keep the WebView laid out behind the status/cutout region on Android 15/16.
+        // Hiding status bars alone can leave a blank inset above the CSS frame.
+        window.getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        );
+        window.setStatusBarColor(android.graphics.Color.TRANSPARENT);
+        window.setNavigationBarColor(android.graphics.Color.TRANSPARENT);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             WindowManager.LayoutParams params = window.getAttributes();
             params.layoutInDisplayCutoutMode =
