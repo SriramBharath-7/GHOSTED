@@ -606,8 +606,8 @@ function cloudConflictBanner(){
 async function resumeCloudSyncSafely(){
  if(cloudSync.busy)return {busy:true};
  if(!cloudState.configured)throw Error('Cloud not configured');
- await requireCloudSession();
- cloudSync.enabled=true;cloudSync.mode='checking-conflict';cloudSync.lastError=null;cloudSync.nextRetryAt=0;
+ if(navigator.onLine)await requireCloudSession();
+ cloudSync.enabled=true;cloudSync.mode=navigator.onLine?'checking-conflict':'offline-queued';cloudSync.lastError=null;cloudSync.nextRetryAt=0;
  if(cloudSyncTimer)clearInterval(cloudSyncTimer);
  cloudSyncTimer=setInterval(()=>{void syncCycle();},15000);
  localStorage.setItem(CLOUD_SYNC_ARMED,'1');
@@ -706,7 +706,9 @@ async function resolveFlawlessConflict(choice){
  document.getElementById('ghosted-cloud-conflict')?.remove();
  cloudSync.mode='resolved';cloudSync.lastError=null;
  cloudNotice('SYNC RECOVERED // NO REBOOT');
- return {ok:true,note:'Operator decision applied safely. Use Restart Sync to resume.'};
+ // Resume on next tick; never overlap the still-running operator action.
+ setTimeout(()=>{void resumeCloudSyncSafely().catch(error=>console.warn('[GHOSTED] Safe post-resolution resume:',error));},500);
+ return {ok:true,note:'Operator decision applied safely. Synchronization will resume.'};
 }
 function flawlessPanel(){
  v8BackupVerified=false;
@@ -836,7 +838,7 @@ async function syncCycle(){
    cloudSync.nextRetryAt=Date.now()+Math.min(120000,3000*2**Math.min(5,cloudSync.failures));
    return {retrying:true,reason,nextRetryAt:new Date(cloudSync.nextRetryAt).toISOString()};
   }
-  if(/GHOSTED_REVISION_CONFLICT|revision conflict/i.test(reason)){
+  if(/GHOSTED_REVISION_CONFLICT|revision conflict|stale revision|expected revision|HTTP 409|HTTP 412|23505|40001/i.test(reason)){
    cloudSync.mode='cloud-race-retry';cloudSync.nextRetryAt=Date.now()+2500;return {retrying:true,reason};
   }
   cloudSync.mode='needs-attention';cloudSync.enabled=false;
