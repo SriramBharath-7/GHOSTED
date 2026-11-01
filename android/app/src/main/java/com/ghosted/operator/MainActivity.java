@@ -9,7 +9,6 @@ import android.view.WindowInsetsController;
 import android.view.WindowManager;
 
 import com.getcapacitor.BridgeActivity;
-
 /**
  * GHOSTED V7.1.1 — Native immersive edge-to-edge shell.
  *
@@ -24,7 +23,6 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         applyImmersiveDisplay();
     }
-
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -32,9 +30,13 @@ public class MainActivity extends BridgeActivity {
             applyImmersiveDisplay();
         }
     }
-
     private void applyImmersiveDisplay() {
         Window window = getWindow();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams params = window.getAttributes();
+            params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            window.setAttributes(params);
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false);
             WindowInsetsController controller = window.getInsetsController();
