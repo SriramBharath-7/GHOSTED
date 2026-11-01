@@ -386,6 +386,7 @@ function cloudDownloadLocalBackup(raw) {
 }
 
 async function cloudRestore() {
+  if(localStorage.getItem(CLOUD_SYNC_CONFLICT))throw Error('Resolve the protected conflict through Sync Control Center first; manual restore could discard Android-only progress');
   const preview = await cloudPreviewRestore();
   const originalRaw = window.localStorage.getItem(CLOUD_STORAGE_KEY);
   if (!window.confirm(`GHOSTED CLOUD RECOVERY\nRemote revision: ${preview.remoteRevision}\nRemote saved days: ${preview.remoteSavedDays}\nLocal saved days: ${preview.localSavedDays}\nThis replaces ONLY the local public profile. Vault stays local. Continue to backup step?`)) {
