@@ -48,8 +48,13 @@ jobs:
           fi
 
 
-      - name: Validate V7.9 offline merge regression suite
-        run: node --test tests/cloud-sync-v79.test.mjs
+      - name: Validate V8 offline sync and recovery tests
+        run: |
+          node --check src/main.js
+          node --check public/js/ghosted-05.js
+          node --check src/flawless-ui.js
+          node --check src/flawless-journal.js
+          node --test tests/*.test.mjs
 
       - name: Build offline GHOSTED web assets
         env:
