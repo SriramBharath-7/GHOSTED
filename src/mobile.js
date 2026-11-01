@@ -5,6 +5,7 @@ import { CapacitorSQLite } from '@capacitor-community/sqlite';
 import { PROFILE_KEY, VAULT_KEYS, LOCAL_AUTO_KEY,
   makeOfflineBackup, newestBackup, restoreOfflineBackup } from './mobile-backup.js';
 
+window.GHOSTED_OFFLINE_NATIVE = true;
 const Backup = registerPlugin('GhostedLocalBackup');
 const DB='ghosted_profile';
 const KEYS=[PROFILE_KEY,...VAULT_KEYS];
