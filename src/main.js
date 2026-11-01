@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { openFlawlessPanel } from './flawless-ui.js';
+import { PublicJournal } from './flawless-journal.js';
 import { CapacitorSQLite } from '@capacitor-community/sqlite';
 
 // GHOSTED V7.1 â€” Android SQLite mirror and recovery layer.
@@ -133,6 +134,8 @@ function injectClassic(url) {
 // Async function avoids top-level await so Vite's default ES2020 target can build.
 async function startGhosted() {
   await prepareNativeStorage();
+  try { publicJournal.repair(localStorage.getItem('ghosted:web-os:personal:history:v68')); }
+  catch(error) { console.warn('[GHOSTED] Public operation journal needs review:',error); }
   await bootstrapCloudProfile();
   for (let i = 1; i <= 5; i++) {
     await injectClassic(`/js/ghosted-0${i}.js`);
@@ -149,6 +152,18 @@ const CLOUD_URL = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const CLOUD_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
 let cloudSession = null;
 const activeCloudRequests = new Set();
+const publicJournal = new PublicJournal(window.localStorage);
+window.GHOSTED_SYNC_APPLYING = false;
+window.GHOSTED_SYNC_PREPARE_PUBLIC_WRITE = (before,after) => window.GHOSTED_SYNC_APPLYING?null:publicJournal.prepare(before,after);
+window.GHOSTED_SYNC_COMMIT_PUBLIC_WRITE = id => publicJournal.commit(id);
+window.GHOSTED_SYNC_JOURNAL_STATUS = () => publicJournal.status();
+window.GHOSTED_SYNC_ACK_LOCAL = profile => {
+  try { publicJournal.acknowledge(profile,localStorage.getItem('ghosted:web-os:personal:history:v68')); }
+  catch(error){console.warn('[GHOSTED] Local operation journal acknowledgement needs review:',error);}
+};
+window.GHOSTED_SYNC_NOTIFY_PUBLIC_WRITE = () => {
+  if(cloudSync?.enabled&&navigator.onLine)setTimeout(()=>{void syncCycle();},400);
+};
 const cloudState = { configured: !!(CLOUD_URL && CLOUD_KEY), signedIn: false, lastError: null };
 
 async function cloudRequest(path, { method = 'GET', body, token, extraHeaders = {} } = {}) {
@@ -401,6 +416,7 @@ function cloudRemember(profile,revision){
  localStorage.setItem(CLOUD_REVISION_KEY,String(revision));
  localStorage.setItem(CLOUD_SYNC_HASH,stableProfile(profile));
  cloudSync.lastSuccess=new Date().toISOString();cloudSync.failures=0;
+ window.GHOSTED_SYNC_ACK_LOCAL?.(profile);
 }
 function cloudMerge(base,local,remote){
  const conflicts=[];
@@ -958,6 +974,7 @@ window.GHOSTED_CLOUD = Object.freeze({
   resumeSync: resumeCloudSyncSafely,
   restartEngine: restartFlawlessSync,
   openControlCenter: flawlessPanel,
+  journalStatus: () => publicJournal.status(),
   diagnostics: flawlessDiagnostics,
   resolveConflict: resolveFlawlessConflict,
   previewRestore: cloudPreviewRestore,
