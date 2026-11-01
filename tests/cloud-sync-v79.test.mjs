@@ -77,3 +77,11 @@ test('requires review for concurrent edits of same setting',()=>{
  const l=changed(p=>p.settings.sounds='a'),r=changed(p=>p.settings.sounds='b');
  assert.equal(cloudMerge(base,l,r).ok,false);
 });
+
+test('same-looking purchases from two offline devices still need operator review',()=>{
+ const l=changed(p=>p.purchaseRecords.push({id:1,price:100}));
+ const r=changed(p=>p.purchaseRecords.push({id:1,price:100}));
+ const result=cloudMerge(base,l,r);
+ assert.equal(result.ok,false);
+ assert.ok(result.conflicts.some(x=>x.includes('concurrent-spending')));
+});
