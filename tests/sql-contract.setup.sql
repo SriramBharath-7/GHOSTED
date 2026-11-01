@@ -30,3 +30,5 @@ end;$$;
 grant usage on schema auth to authenticated;
 grant execute on function auth.uid() to authenticated;
 grant execute on function public.ghosted_put_snapshot(text,jsonb,bigint) to authenticated;
+-- The fixture exposes a read-only snapshot for postcondition assertions.
+grant select on public.ghosted_snapshots to authenticated;
