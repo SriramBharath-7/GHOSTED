@@ -150,6 +150,9 @@ const CLOUD_REVISION_KEY = 'ghosted:cloud:ack-revision:v1';
 const CLOUD_OWNER_ID = '9c63d03e-cafd-41bb-b753-72b05daa0710';
 const CLOUD_URL = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const CLOUD_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+// Enable only AFTER the reviewed Supabase SQL migration has been applied.
+const CLOUD_V8_RECEIPTS = import.meta.env.VITE_GHOSTED_V8_RPC_ENABLED === 'true';
+const CLOUD_V8_INTENT = 'ghosted:cloud:upload-intent:v8';
 let cloudSession = null;
 const activeCloudRequests = new Set();
 const publicJournal = new PublicJournal(window.localStorage);
@@ -166,7 +169,38 @@ window.GHOSTED_SYNC_NOTIFY_PUBLIC_WRITE = () => {
 };
 const cloudState = { configured: !!(CLOUD_URL && CLOUD_KEY), signedIn: false, lastError: null };
 
+
+function v8WriteIntent(payload) {
+ const expected=payload.p_expected_revision??null;
+ const hash=stableProfile(payload.p_payload);
+ const existing=JSON.parse(localStorage.getItem(CLOUD_V8_INTENT)||'null');
+ if(existing?.hash===hash&&existing.expected===expected&&existing.storageKey===CLOUD_STORAGE_KEY)
+  return existing.id;
+ const id=crypto.randomUUID();
+ const intent={id,expected,hash,storageKey:CLOUD_STORAGE_KEY,createdAt:new Date().toISOString()};
+ const serialized=JSON.stringify(intent);
+ localStorage.setItem(CLOUD_V8_INTENT,serialized);
+ if(localStorage.getItem(CLOUD_V8_INTENT)!==serialized)
+  throw Error('Upload operation ID not durable; cloud write blocked');
+ return id;
+}
+function v8AcknowledgeIntent(profile,revision){
+ if(!CLOUD_V8_RECEIPTS)return;
+ try{
+  const saved=JSON.parse(localStorage.getItem(CLOUD_V8_INTENT)||'null');
+  if(saved&&saved.hash===stableProfile(profile)&&Number(revision)>Number(saved.expected??0))
+   localStorage.removeItem(CLOUD_V8_INTENT);
+ }catch(error){console.warn('[GHOSTED] Retained unverified upload intent',error);}
+}
+
 async function cloudRequest(path, { method = 'GET', body, token, extraHeaders = {} } = {}) {
+  if(CLOUD_V8_RECEIPTS && path==='/rest/v1/rpc/ghosted_put_snapshot') {
+    // Identity survives retries and app restarts; the receipt and snapshot
+    // commit atomically in the optional V8 Supabase RPC.
+    const id=v8WriteIntent(body);
+    body={...body,p_operation_id:id};
+    path='/rest/v1/rpc/ghosted_put_snapshot_v8';
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
   activeCloudRequests.add(controller);
@@ -417,6 +451,7 @@ function cloudRemember(profile,revision){
  localStorage.setItem(CLOUD_SYNC_HASH,stableProfile(profile));
  cloudSync.lastSuccess=new Date().toISOString();cloudSync.failures=0;
  window.GHOSTED_SYNC_ACK_LOCAL?.(profile);
+ v8AcknowledgeIntent(profile,revision);
 }
 function cloudMerge(base,local,remote){
  const conflicts=[];
@@ -599,7 +634,8 @@ async function flawlessDiagnostics(){
   lastError:cloudSync.lastError,
   cloudRevision:localStorage.getItem(CLOUD_REVISION_KEY),
   trustedBaseline:!!cloudBase(),conflict:cloudConflictStatus(),
-  pendingJournal:window.GHOSTED_SYNC_JOURNAL_STATUS?.()||null
+  pendingJournal:window.GHOSTED_SYNC_JOURNAL_STATUS?.()||null,
+  serverMode:CLOUD_V8_RECEIPTS?'v8-transactional-idempotent':'legacy-cas-migration-pending'
  };
  if(cloudSession&&navigator.onLine){
   try{d.remote=(await cloudInspect()).revision;d.serverReachable=true;}
@@ -975,6 +1011,7 @@ window.GHOSTED_CLOUD = Object.freeze({
   restartEngine: restartFlawlessSync,
   openControlCenter: flawlessPanel,
   journalStatus: () => publicJournal.status(),
+  serverMode: () => CLOUD_V8_RECEIPTS?'v8-transactional-idempotent':'legacy-cas-migration-pending',
   diagnostics: flawlessDiagnostics,
   resolveConflict: resolveFlawlessConflict,
   previewRestore: cloudPreviewRestore,
