@@ -72,6 +72,32 @@ export function openFlawlessPanel(api) {
  button('[ EXPORT JOURNAL ]',api.exportJournal);
  if(api.status().conflict){
   button('[ SAVE BOTH COPIES ]',api.exportConflict);
+
+  button('[ VIEW / COPY RECOVERY JSON ]',()=>{
+   panel.querySelector('#ghosted-recovery-copy')?.remove();
+   const wrap=document.createElement('div');wrap.id='ghosted-recovery-copy';
+   wrap.style.cssText='margin:12px 0;border:1px solid #8b733a;padding:8px;border-radius:4px';
+   const instructions=document.createElement('div');
+   instructions.textContent='BACKUP FALLBACK // Copy the entire JSON to a private note or a .json file. Includes public habits and history; NEVER share publicly. Verify pasted text before resolving.';
+   instructions.style.cssText='color:#efcc83;font:11px/1.5 monospace;margin-bottom:6px';
+   const field=document.createElement('textarea');field.readOnly=true;
+   field.setAttribute('aria-label','Recovery JSON; copy it to a private safe location');
+   field.value=api.recoveryText();
+   field.style.cssText='width:100%;box-sizing:border-box;height:115px;background:#020a05;color:#c2ebcf;font:11px/1.4 monospace;border:1px solid #447558;resize:vertical';
+   const copy=document.createElement('button');copy.type='button';copy.textContent='[ SELECT & COPY ]';
+   copy.style.cssText='background:#12311f;color:#98f5b9;border:1px solid #437957;padding:5px 7px;margin-top:5px;font:11px monospace';
+   copy.addEventListener('click',()=>{
+    field.focus();field.select();
+    if(navigator.clipboard?.writeText){
+     void navigator.clipboard.writeText(field.value).then(
+      ()=>{instructions.textContent='Copied to clipboard. PASTE it into a private file and VERIFY before confirming backup.';},
+      ()=>{instructions.textContent='Clipboard denied. Text selected: use your device COPY action and paste into a private note.';}
+     );
+    }else instructions.textContent='Text selected: use your device COPY action and paste into a private note.';
+   });
+   wrap.append(instructions,field,copy);panel.append(wrap);
+   return {note:'Recovery JSON displayed. Verify it is saved somewhere outside GHOSTED before selecting a resolution.'};
+  });
   button('[ REFRESH COMPARISON ]',api.refreshConflict);
   const approval=document.createElement('label');
   approval.style.cssText='display:block;margin:10px 0;color:#e7c77a';
