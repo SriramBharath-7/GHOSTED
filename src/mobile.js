@@ -1,14 +1,14 @@
 // GHOSTED // Android-exclusive offline entry. The website uses src/main.js.
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { CapacitorSQLite } from '@capacitor-community/sqlite';
-import { PublicJournal } from './flawless-journal.js';
+
 import { PROFILE_KEY, VAULT_KEYS, LOCAL_AUTO_KEY,
   makeOfflineBackup, newestBackup, restoreOfflineBackup } from './mobile-backup.js';
 
 const Backup = registerPlugin('GhostedLocalBackup');
 const DB='ghosted_profile';
 const KEYS=[PROFILE_KEY,...VAULT_KEYS];
-const journal=new PublicJournal(window.localStorage);
+
 const localStatus={
   platform:Capacitor.getPlatform(),sqlite:'initializing',backup:'not-selected',
   lastBackup:null,lastError:null,writes:0
@@ -21,10 +21,9 @@ let backupEnabled=localStorage.getItem(LOCAL_AUTO_KEY)==='1';
 let backupFolderConfigured=false;
 let restoring=false;
 
-window.GHOSTED_SYNC_PREPARE_PUBLIC_WRITE=(before,after)=>journal.prepare(before,after);
-window.GHOSTED_SYNC_COMMIT_PUBLIC_WRITE=id=>journal.commit(id);
-// No cloud sync, network login, background polling, or remote token storage.
-window.GHOSTED_SYNC_NOTIFY_PUBLIC_WRITE=()=>{};
+
+
+
 
 function notify(message){
   const el=document.getElementById('toast');
@@ -224,8 +223,7 @@ function injectClassic(url){
 }
 async function bootLocal(){
   await prepareNativeStorage();
-  try{journal.repair(localStorage.getItem(PROFILE_KEY));}
-  catch(error){console.warn('[GHOSTED local] Public mutation journal needs review',error);}
+
   for(let i=1;i<=5;i++)await injectClassic('/js/ghosted-0'+i+'.js');
   installSettingsControls();
   if(Capacitor.isNativePlatform()){
