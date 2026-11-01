@@ -13,13 +13,14 @@ const left=copy(baseline),right=copy(baseline),merged=copy(baseline);
 left.days['2026-11-01']=[1];left.rewardLedger['2026-11-01']={xp:20,coins:8,bonus:false,awards:{1:{xp:20,coins:8}}};
 right.days['2026-11-01']=[2];right.rewardLedger['2026-11-01']={xp:30,coins:10,bonus:false,awards:{2:{xp:30,coins:10}}};
 merged.days['2026-11-01']=[1,2];merged.rewardLedger['2026-11-01']={xp:50,coins:18,bonus:false,awards:{1:{xp:20,coins:8},2:{xp:30,coins:10}}};
-function reviewer(due){
+function reviewer(due,blocked=[]){
  const code=[
   'let state='+JSON.stringify(left)+';',
   'const validState=v=>v.schemaVersion===4&&Array.isArray(v.purchased)&&!!v.days;',
   'const validDate=v=>/^\\d{4}-\\d{2}-\\d{2}$/.test(v);',
   "const dateAgo=()=> '2026-11-01';",
   'const perfectScope=()=> '+JSON.stringify(due)+';',
+  'const eligible=(id,day)=>!'+JSON.stringify(blocked)+'.includes(String(id)+"@"+day);',
   'const full=day=>perfectScope(day).length>0&&perfectScope(day).every(id=>(state.days[day]||[]).includes(id));',
   bridge,
   'return window.GHOSTED_RECONCILE_CLOUD_MERGE;'
@@ -53,4 +54,16 @@ test('future-day reward merges are not credited',()=>{
  l.days['2026-11-03']=[1];r.days['2026-11-03']=[2];
  const reviewed=reviewer([1,2])(future,b,l,r);
  assert.equal(reviewed.ok,false);
+});
+
+test('different offline reward dates with shared quota are blocked instead of double-paid',()=>{
+ const b=copy(baseline),l=copy(baseline),r=copy(baseline),combined=copy(baseline);
+ b.days['2026-11-02']=[];b.rewardLedger['2026-11-02']={xp:0,coins:0,bonus:false,awards:{}};
+ l.days['2026-11-01']=[2];l.rewardLedger['2026-11-01']={xp:20,coins:8,bonus:false,awards:{2:{xp:20,coins:8}}};
+ r.days['2026-11-02']=[2];r.rewardLedger['2026-11-02']={xp:20,coins:8,bonus:false,awards:{2:{xp:20,coins:8}}};
+ combined.days['2026-11-01']=[2];combined.days['2026-11-02']=[2];
+ combined.rewardLedger['2026-11-01']=l.rewardLedger['2026-11-01'];
+ combined.rewardLedger['2026-11-02']=r.rewardLedger['2026-11-02'];
+ const result=reviewer([1,2],['2@2026-11-02'])(combined,b,l,r);
+ assert.equal(result.ok,false);assert.match(result.reason,/quota/);
 });
