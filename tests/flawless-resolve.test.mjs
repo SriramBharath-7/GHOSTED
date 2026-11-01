@@ -65,7 +65,7 @@ test('explicit keep-cloud decision backs up before changing local profile',async
 });
 test('changed local profile blocks recovery without changing cloud',async()=>{
  const x=setup({localChanged:true});
- await assert.rejects(()=>x.resolver('device'),/changed after/);
+ await assert.rejects(()=>x.resolver('device'),/changed since/);
  assert.equal(x.server.writes,0);assert.ok(x.storage.get('conflict'));
 });
 test('server advanced after capture blocks stale decision and preserves both',async()=>{
