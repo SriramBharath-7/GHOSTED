@@ -10,7 +10,7 @@ import android.view.WindowManager;
 
 import com.getcapacitor.BridgeActivity;
 
-/** GHOSTED V7.1.4 — keep the existing terminal WebView in the full display area. */
+/** GHOSTED V7.1.4 â€” keep the existing terminal WebView in the full display area. */
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -21,7 +21,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         applyImmersiveDisplay();
     }
