@@ -176,3 +176,23 @@ test('online revision race is marked retryable and does not corrupt local profil
  assert.equal(phone.profile.settings.sounds,true);
  assert.equal(phone.cloudSync.mode,'cloud-race-retry');
 });
+
+test('lost acknowledgement plus newer local edit advances baseline without discarding edit',async()=>{
+ const shared={revision:8,payload:baseline(),writes:0};
+ shared.payload.settings.sounds=true;
+ const phone=createDevice({shared,receipts:true});
+ phone.edit(x=>{x.settings.sounds=true;x.settings.scanlines=false;});
+ const lastUploaded=clone(shared.payload);
+ const pending={id:'old-accepted-id',storageKey:'public-profile',
+  hash:canonical(lastUploaded),localHash:canonical(lastUploaded),expected:7};
+ phone.store.set('intent',JSON.stringify(pending));
+ const result=await phone.api.syncCycle();
+ assert.equal(result.retry,true);
+ assert.equal(phone.ack,8);
+ assert.equal(phone.profile.settings.sounds,true);
+ assert.equal(phone.profile.settings.scanlines,false);
+ assert.equal(shared.writes,0);
+ const next=await phone.api.syncCycle();
+ assert.equal(next.uploadedRevision,9);
+ assert.equal(shared.payload.settings.scanlines,false);
+});
