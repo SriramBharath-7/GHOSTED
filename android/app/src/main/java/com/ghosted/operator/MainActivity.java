@@ -14,6 +14,8 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Register offline backup plugin before Capacitor creates its WebView.
+        registerPlugin(GhostedLocalBackupPlugin.class);
         // Apply window geometry before Capacitor constructs its WebView.
         configureFullScreenWindow();
         super.onCreate(savedInstanceState);

@@ -7,10 +7,12 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "android:setup": "npm run build && cap add android && cap sync android",
-    "android:sync": "npm run build && cap sync android",
+    "android:setup": "npm run build:mobile && cap add android && cap sync android",
+    "android:sync": "npm run build:mobile && cap sync android",
     "android:open": "cap open android",
-    "android:run": "npm run android:sync && cap run android"
+    "android:run": "npm run android:sync && cap run android",
+    "build:mobile": "vite build --mode mobile",
+    "test:mobile": "node --test tests/mobile-offline.test.mjs"
   },
   "devDependencies": {
     "@capacitor/android": "^8.0.0",
