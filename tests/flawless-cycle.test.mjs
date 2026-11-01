@@ -53,7 +53,7 @@ function createDevice({shared,profile=baseline(),ack=7,base=baseline(),net=true,
   'CLOUD_STORAGE_KEY','CLOUD_SYNC_BASELINE','CLOUD_SYNC_HASH',
   'CLOUD_REVISION_KEY','CLOUD_SYNC_RECOVERY','CLOUD_SYNC_CONFLICT',
   'CLOUD_SYNC_ARMED','CLOUD_V8_RECEIPTS','CLOUD_V8_INTENT',
-  'requireCloudSession','cloudReadSnapshot','cloudRequest','validateCloudRecoveryProfile',body);
+  'requireCloudSession','cloudReadSnapshot','cloudRequest','validateCloudRecoveryProfile','v8AcknowledgeIntent',body);
  const api=create(localStorage,window,document,network,cloudSync,null,{configured:true},
   'operator',keys.CLOUD_STORAGE_KEY,keys.CLOUD_SYNC_BASELINE,keys.CLOUD_SYNC_HASH,
   keys.CLOUD_REVISION_KEY,keys.CLOUD_SYNC_RECOVERY,keys.CLOUD_SYNC_CONFLICT,
@@ -65,7 +65,7 @@ function createDevice({shared,profile=baseline(),ack=7,base=baseline(),net=true,
    if(onWrite)await onWrite();
    server.revision++;server.payload=clone(opts.body.p_payload);server.writes++;
    return server.revision;
-  },validate);
+  },validate,()=>{});
  return {
   api,cloudSync,store,server,network,window,
   get profile(){return JSON.parse(store.get(keys.CLOUD_STORAGE_KEY))},
