@@ -142,3 +142,102 @@ startGhosted().catch(error => {
   status.state = 'startup-error';
   status.lastError = String(error);
 });
+
+// GHOSTED V7.4: explicit, opt-in cloud snapshot testing. No background sync.
+const CLOUD_STORAGE_KEY = 'ghosted:web-os:personal:history:v68';
+const CLOUD_REVISION_KEY = 'ghosted:cloud:ack-revision:v1';
+const CLOUD_URL = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const CLOUD_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+let cloudSession = null;
+const cloudState = { configured: !!(CLOUD_URL && CLOUD_KEY), signedIn: false, lastError: null };
+
+async function cloudRequest(path, { method = 'GET', body, token, extraHeaders = {} } = {}) {
+  if (!cloudState.configured) throw new Error('Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY first');
+  const response = await fetch(`${CLOUD_URL}${path}`, {
+    method,
+    headers: {
+      apikey: CLOUD_KEY,
+      Authorization: `Bearer ${token || CLOUD_KEY}`,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...extraHeaders,
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const value = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(value?.message || value?.msg || value?.error_description || value?.error || `HTTP ${response.status}`);
+  return value;
+}
+
+async function cloudSignIn() {
+  const email = window.prompt('GHOSTED private operator email');
+  if (!email) return { ok: false, reason: 'Cancelled' };
+  const password = window.prompt('GHOSTED Supabase password (not stored by GHOSTED)');
+  if (!password) return { ok: false, reason: 'Cancelled' };
+  try {
+    const auth = await cloudRequest('/auth/v1/token?grant_type=password', {
+      method: 'POST', body: { email, password },
+    });
+    if (!auth.access_token || !auth.user?.id) throw new Error('No authenticated session');
+    cloudSession = { accessToken: auth.access_token, userId: auth.user.id, expiresAt: Date.now() + auth.expires_in * 1000 };
+    cloudState.signedIn = true;
+    cloudState.lastError = null;
+    return { ok: true, userId: cloudSession.userId, note: 'Session held in memory only; sign in again after reload' };
+  } catch (error) { cloudState.lastError = String(error); throw error; }
+}
+
+function requireCloudSession() {
+  if (!cloudSession || cloudSession.expiresAt <= Date.now() + 30000) throw new Error('Cloud session missing or expired; sign in again');
+  return cloudSession;
+}
+
+async function cloudInspect() {
+  const session = requireCloudSession();
+  const filter = encodeURIComponent(CLOUD_STORAGE_KEY);
+  const rows = await cloudRequest(`/rest/v1/ghosted_snapshots?storage_key=eq.${filter}&select=revision,updated_at,storage_key`, {
+    token: session.accessToken,
+  });
+  const row = rows?.[0] || null;
+  return { remoteExists: !!row, revision: row?.revision ?? null, updatedAt: row?.updated_at ?? null, localAcknowledgedRevision: window.localStorage.getItem(CLOUD_REVISION_KEY) };
+}
+
+function cloudLocalProfile() {
+  const raw = window.localStorage.getItem(CLOUD_STORAGE_KEY);
+  if (!raw) throw new Error('No local profile; upload blocked to prevent default-state replacement');
+  const profile = JSON.parse(raw);
+  if (!profile || typeof profile !== 'object' || Array.isArray(profile) || !profile.days || !Array.isArray(profile.purchased) || profile.isSample || profile.schemaVersion !== 4) {
+    throw new Error('Local profile validation failed or is a demo; upload blocked');
+  }
+  return profile;
+}
+
+async function cloudUpload() {
+  const session = requireCloudSession();
+  const profile = cloudLocalProfile();
+  const remote = await cloudInspect();
+  const acknowledged = window.localStorage.getItem(CLOUD_REVISION_KEY);
+  if (remote.remoteExists && (!acknowledged || Number(acknowledged) !== remote.revision)) {
+    throw new Error('Cloud already has another or newer snapshot. Upload blocked to prevent overwriting it');
+  }
+  if (!window.confirm(`Upload the local GHOSTED profile to private Supabase? Remote revision: ${remote.revision ?? 'empty'}. Vault remains local.`)) {
+    return { ok: false, reason: 'Cancelled' };
+  }
+  const revision = await cloudRequest('/rest/v1/rpc/ghosted_put_snapshot', {
+    method: 'POST', token: session.accessToken,
+    body: {
+      p_storage_key: CLOUD_STORAGE_KEY,
+      p_payload: profile,
+      p_expected_revision: remote.revision,
+    },
+  });
+  if (!Number.isSafeInteger(Number(revision)) || Number(revision) < 1) throw new Error('Unexpected revision result');
+  window.localStorage.setItem(CLOUD_REVISION_KEY, String(revision));
+  return { ok: true, uploadedRevision: Number(revision), note: 'Explicit upload finished; automatic sync is not enabled' };
+}
+
+window.GHOSTED_CLOUD = Object.freeze({
+  status: () => ({ ...cloudState, sessionActive: !!cloudSession && cloudSession.expiresAt > Date.now() + 30000, automaticSync: false }),
+  signIn: cloudSignIn,
+  inspect: cloudInspect,
+  upload: cloudUpload,
+  logout: () => { cloudSession = null; cloudState.signedIn = false; return { ok: true }; },
+});
