@@ -376,10 +376,15 @@ function cloudEqual(a,b){return stableProfile(a)===stableProfile(b);}
 function cloudCopy(v){return v===undefined?undefined:JSON.parse(JSON.stringify(v));}
 function cloudPlain(v){return v!==null&&typeof v==='object'&&!Array.isArray(v);}
 function cloudBase(){
- try{
-  const v=validateCloudRecoveryProfile(JSON.parse(localStorage.getItem(CLOUD_SYNC_BASELINE)||'null'));
-  return cloudEqual(v,JSON.parse(localStorage.getItem(CLOUD_SYNC_HASH)||'null'))?v:null;
- }catch{return null;}
+ const hash=localStorage.getItem(CLOUD_SYNC_HASH);
+ for(const raw of [localStorage.getItem(CLOUD_SYNC_BASELINE),null]){
+  try{
+   const profile=raw?JSON.parse(raw):JSON.parse(localStorage.getItem(CLOUD_SYNC_RECOVERY)||'null')?.profile;
+   const candidate=validateCloudRecoveryProfile(profile);
+   if(stableProfile(candidate)===hash)return candidate;
+  }catch{}
+ }
+ return null;
 }
 function cloudRemember(profile,revision){
  const raw=JSON.stringify(validateCloudRecoveryProfile(profile));
@@ -410,7 +415,6 @@ function cloudMerge(base,local,remote){
  const localLedger=dates(local,'rewardLedger'),remoteLedger=dates(remote,'rewardLedger');
  const ld=new Set([...dates(local,'days'),...localLedger]);
  for(const d of [...dates(remote,'days'),...remoteLedger])if(ld.has(d))conflicts.push('daily-record:'+d);
- if(localLedger.some(a=>remoteLedger.some(b=>a.slice(0,7)===b.slice(0,7))))conflicts.push('reward-period-overlap');
  const rewards=['days','rewardLedger','mildDays'];
  const policy=['protocolEdits','scheduleHistory','customProtocols'];
  const spending=['purchased','purchaseRecords','redemptions','customMarketItems','legacyMarketItems'];
@@ -423,11 +427,17 @@ function cloudMerge(base,local,remote){
  return {ok:conflicts.length===0,profile:result,conflicts:[...new Set(conflicts)]};
 }
 function saveCloudConflict(local,remote,revision,details){
- const raw=JSON.stringify({format:'GHOSTED_V79_CONFLICT',createdAt:new Date().toISOString(),revision,local,remote,details});
- localStorage.setItem(CLOUD_SYNC_CONFLICT,raw);
- if(localStorage.getItem(CLOUD_SYNC_CONFLICT)!==raw)throw Error('Conflict copies could not be preserved');
+ if(!localStorage.getItem(CLOUD_SYNC_CONFLICT)){
+  const raw=JSON.stringify({format:'GHOSTED_V79_CONFLICT',createdAt:new Date().toISOString(),revision,local,remote,details});
+  localStorage.setItem(CLOUD_SYNC_CONFLICT,raw);
+  if(localStorage.getItem(CLOUD_SYNC_CONFLICT)!==raw)throw Error('Conflict copies could not be preserved');
+ }
  cloudSync.mode='conflict-protected';
  cloudSync.lastError='Conflict protected: '+details.join(', ');
+ cloudSync.enabled=false;
+ if(cloudSyncTimer)clearInterval(cloudSyncTimer);
+ cloudSyncTimer=null;
+ cloudConflictBanner();
 }
 function updateCloudView(profile,original){
  if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return false;
@@ -440,7 +450,57 @@ function updateCloudView(profile,original){
 function cloudNotice(message){
  const el=document.getElementById('toast');if(!el)return;
  el.textContent=message;el.classList.add('show');
- clearTimeout(window.__ghostedCloudNotice);window.__ghostedCloudNotice=setTimeout(()=>el.classList.remove('show'),1700);
+ clearTimeout(window.__ghostedCloudNotice);
+ window.__ghostedCloudNotice=setTimeout(()=>el.classList.remove('show'),2300);
+}
+function cloudConflictStatus(){
+ const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+ if(!raw)return {saved:false,mode:cloudSync.mode,lastError:cloudSync.lastError};
+ try{
+  const c=JSON.parse(raw);
+  return {saved:true,createdAt:c.createdAt,remoteRevision:c.revision,details:c.details,
+   localSavedDays:Object.keys(c.local?.days||{}).length,
+   remoteSavedDays:Object.keys(c.remote?.days||{}).length,
+   mode:cloudSync.mode,lastError:cloudSync.lastError};
+ }catch{return {saved:true,corrupt:true,mode:cloudSync.mode};}
+}
+function exportCloudConflict(){
+ const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+ if(!raw)throw Error('No preserved conflict to export');
+ const blob=new Blob([raw],{type:'application/json'});
+ const url=URL.createObjectURL(blob);
+ const link=document.createElement('a');
+ link.href=url;
+ link.download='GHOSTED_DUAL_SYNC_RECOVERY_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+ document.body.append(link);
+ try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+ return {requested:true,note:'Check that the file downloaded. Both copies remain stored locally.'};
+}
+function cloudConflictBanner(){
+ if(!document.body||document.getElementById('ghosted-cloud-conflict'))return;
+ const box=document.createElement('div');
+ box.id='ghosted-cloud-conflict';box.setAttribute('role','status');
+ box.style.cssText='position:fixed;z-index:10095;top:8px;right:8px;max-width:min(285px,calc(100vw - 16px));background:#07150f;color:#e8bd6e;border:1px solid #a77a35;border-radius:6px;padding:8px 10px;font:11px/1.4 monospace;box-shadow:0 3px 16px #000b;';
+ const title=document.createElement('div');title.textContent='CLOUD PAUSED // COPIES PRESERVED';
+ const desc=document.createElement('div');desc.textContent='Conflicting progress needs review. No overwrite.';
+ desc.style.cssText='opacity:.85;margin:3px 0 6px;';
+ const save=document.createElement('button');save.type='button';save.textContent='SAVE BOTH';
+ save.style.cssText='color:#8ef1bc;background:#092318;border:1px solid #296a4a;border-radius:4px;padding:4px 8px;font:inherit;';
+ save.addEventListener('click',()=>{try{exportCloudConflict();cloudNotice('RECOVERY DOWNLOAD REQUESTED');}catch{cloudNotice('EXPORT FAILED — COPIES PRESERVED');}});
+ const hide=document.createElement('button');hide.type='button';hide.textContent='HIDE';
+ hide.style.cssText='background:transparent;color:#e8bd6e;border:0;margin-left:10px;font:inherit;';
+ hide.addEventListener('click',()=>box.remove());
+ box.append(title,desc,save,hide);document.body.append(box);
+}
+async function resumeCloudSyncSafely(){
+ if(cloudSync.busy)return {busy:true};
+ if(!cloudState.configured)throw Error('Cloud not configured');
+ await requireCloudSession();
+ cloudSync.enabled=true;cloudSync.mode='checking-conflict';cloudSync.lastError=null;
+ if(cloudSyncTimer)clearInterval(cloudSyncTimer);
+ cloudSyncTimer=setInterval(()=>{void syncCycle();},15000);
+ localStorage.setItem(CLOUD_SYNC_ARMED,'1');
+ return syncCycle();
 }
 
 function stopCloudSync(reason = 'disabled') {
@@ -487,7 +547,7 @@ async function syncCycle(){
     // A previous CAS may already have committed this exact merged result.
     if(!updateCloudView(next,original))return {deferred:true,reason:'editor-busy'};
     cloudRemember(next,revision);
-    cloudSync.mode='merged';cloudSync.lastError=null;cloudNotice('CLOUD // MERGED');
+    cloudSync.mode='merged';cloudSync.lastError=null;document.getElementById('ghosted-cloud-conflict')?.remove();cloudNotice('CLOUD // MERGED');
     return {downloadedRevision:revision};
    }
    if(merge){
@@ -506,12 +566,12 @@ async function syncCycle(){
     if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return {retry:true,reason:'local-edited-during-merge'};
     if(!updateCloudView(next,original))return {deferred:true,reason:'editor-busy-after-merge'};
     cloudRemember(next,newRev);
-    cloudSync.mode='merged';cloudSync.lastError=null;cloudNotice('CLOUD // MERGED');
+    cloudSync.mode='merged';cloudSync.lastError=null;document.getElementById('ghosted-cloud-conflict')?.remove();cloudNotice('CLOUD // MERGED');
     return {mergedRevision:newRev};
    }
    if(!updateCloudView(next,original))return {deferred:true};
    cloudRemember(next,revision);
-   cloudSync.mode='downloaded';cloudSync.lastError=null;cloudNotice('CLOUD // UPDATED');
+   cloudSync.mode='downloaded';cloudSync.lastError=null;document.getElementById('ghosted-cloud-conflict')?.remove();cloudNotice('CLOUD // UPDATED');
    return {downloadedRevision:revision};
   }
   if(localDirty){
@@ -522,7 +582,7 @@ async function syncCycle(){
    }));
    if(newRev!==ack+1)throw Error('Unexpected upload revision');
    cloudRemember(local,newRev);
-   cloudSync.mode='uploaded';cloudSync.lastError=null;return {uploadedRevision:newRev};
+   cloudSync.mode='uploaded';cloudSync.lastError=null;document.getElementById('ghosted-cloud-conflict')?.remove();cloudNotice('CLOUD // UPLOADED');return {uploadedRevision:newRev};
   }
   if(!base)cloudRemember(remote.payload,revision);
   cloudSync.mode='in-sync';cloudSync.lastError=null;return {inSync:true,revision};
@@ -702,7 +762,10 @@ window.GHOSTED_CLOUD = Object.freeze({
   enableSync: enableCloudSync,
   disableSync: stopCloudSync,
   syncNow: syncCycle,
-  syncStatus: () => ({ ...cloudSync }),
+  syncStatus: () => ({ ...cloudSync, conflict: cloudConflictStatus() }),
+  conflictStatus: cloudConflictStatus,
+  exportConflict: exportCloudConflict,
+  resumeSync: resumeCloudSyncSafely,
   previewRestore: cloudPreviewRestore,
   restore: cloudRestore,
   status: () => ({ ...cloudState, sessionActive: !!cloudSession && cloudSession.expiresAt > Date.now() + 30000, automaticSync: cloudSync.enabled }),
