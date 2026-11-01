@@ -2081,24 +2081,37 @@ window.GHOSTED_RECONCILE_CLOUD_MERGE=(incoming,baseline,local,remote)=>{
  const prepared=structuredClone(incoming),previous=state,checks=[];
  try{
   if(!validState(prepared))return {ok:false,reason:'Invalid merged profile'};
-  const days=new Set([...Object.keys(local.days||{}),...Object.keys(remote.days||{})]);
+  const allDays=new Set([
+   ...Object.keys(local.days||{}),...Object.keys(remote.days||{}),
+   ...Object.keys(local.rewardLedger||{}),...Object.keys(remote.rewardLedger||{})
+  ]);
   state=prepared;
-  for(const date of days){
-   const bothChanged=JSON.stringify(local.days?.[date])!==JSON.stringify(baseline.days?.[date])
-     &&JSON.stringify(remote.days?.[date])!==JSON.stringify(baseline.days?.[date]);
-   const combined=bothChanged
-     &&JSON.stringify(prepared.days?.[date])!==JSON.stringify(local.days?.[date])
-     &&JSON.stringify(prepared.days?.[date])!==JSON.stringify(remote.days?.[date]);
-   if(!combined)continue;
-   if(!validDate(date)||date>dateAgo(0))return {ok:false,reason:'Future reward date needs review'};
+  for(const date of allDays){
+   const leftChanged=JSON.stringify(local.days?.[date])!==JSON.stringify(baseline.days?.[date])||
+      JSON.stringify(local.rewardLedger?.[date])!==JSON.stringify(baseline.rewardLedger?.[date]);
+   const rightChanged=JSON.stringify(remote.days?.[date])!==JSON.stringify(baseline.days?.[date])||
+      JSON.stringify(remote.rewardLedger?.[date])!==JSON.stringify(baseline.rewardLedger?.[date]);
+   if(!leftChanged&&!rightChanged)continue;
+   if(!validDate(date)||date>dateAgo(0))return {ok:false,reason:'Future reward date needs manual review'};
    const row=prepared.rewardLedger?.[date];
    if(!row||!Number.isSafeInteger(row.xp)||!Number.isSafeInteger(row.coins))
      return {ok:false,reason:'Missing verified reward row for '+date};
-   // Use the exact same due-scope/Perfect Day calculation as normal execution.
-   const scope=perfectScope(date);
-   const perfect=full(date);
+   // Different offline dates may share a weekly/monthly/rolling quota. Reevaluate
+   // every NEWLY credited award under the combined timeline before accepting it.
+   for(const [key,award] of Object.entries(row.awards||{})){
+    const existing=baseline.rewardLedger?.[date]?.awards?.[key];
+    if(JSON.stringify(award)===JSON.stringify(existing))continue;
+    if(!award||!Number.isSafeInteger(award.xp)||!Number.isSafeInteger(award.coins))
+     return {ok:false,reason:'Invalid modified award for '+date};
+    if((award.xp>0||award.coins>0)&&!eligible(Number(key),date))
+     return {ok:false,reason:'Merged history exceeds due/period quota for protocol '+key+' on '+date};
+   }
+   const combined=leftChanged&&rightChanged
+      &&JSON.stringify(prepared.days?.[date])!==JSON.stringify(local.days?.[date])
+      &&JSON.stringify(prepared.days?.[date])!==JSON.stringify(remote.days?.[date]);
+   const scope=perfectScope(date),perfect=full(date);
    if(row.bonus&&!perfect)return {ok:false,reason:'Perfect Day scope changed on '+date};
-   if(perfect&&!row.bonus){
+   if(combined&&perfect&&!row.bonus){
     if(baseline.rewardLedger?.[date]?.bonus||local.rewardLedger?.[date]?.bonus||remote.rewardLedger?.[date]?.bonus)
      return {ok:false,reason:'Ambiguous previous Perfect Day reward on '+date};
     if(!Number.isSafeInteger(row.xp+50)||!Number.isSafeInteger(row.coins+20))
