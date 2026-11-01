@@ -23,7 +23,7 @@ export function fingerprint(value){
 function readProfile(raw){
  if(raw==null)return null;
  const profile=JSON.parse(raw);
- if(!profile||typeof profile!=='object'||Array.isArray(profile)||profile.isSample)
+ if(!profile||typeof profile!=='object'||Array.isArray(profile))
   throw Error('Invalid public profile for journal');
  return profile;
 }
@@ -61,7 +61,10 @@ export class PublicJournal {
  prepare(beforeRaw,afterRaw){
   if(beforeRaw===afterRaw)return null;
   const before=readProfile(beforeRaw),after=readProfile(afterRaw);
+  if(after?.isSample||before?.isSample)return null; // Demo profiles are never cloud operations.
   if(after?.schemaVersion!==4)throw Error('Unsupported public profile; sync journal blocked');
+  // Repair the last interrupted write before accepting another mutation.
+  this.repair(beforeRaw);
   const record=this.read();
   if(record.events.length>=MAX_EVENTS)throw Error('Sync journal capacity reached; export recovery');
   const event={
