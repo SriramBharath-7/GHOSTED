@@ -360,6 +360,8 @@ const CLOUD_SYNC_HASH = 'ghosted:cloud:ack-profile:v76';
 const CLOUD_SYNC_RECOVERY = 'ghosted:cloud:auto-recovery:v76';
 const CLOUD_SYNC_SESSION = 'ghosted:cloud:session:v76';
 const CLOUD_SYNC_ARMED = 'ghosted:cloud:armed:v76';
+const CLOUD_SYNC_BASELINE = 'ghosted:cloud:baseline:v79';
+const CLOUD_SYNC_CONFLICT = 'ghosted:cloud:conflict:v79';
 const cloudSync = { enabled: false, busy: false, mode: 'off', lastCheck: null, lastError: null };
 let cloudSyncTimer = null;
 
@@ -367,6 +369,78 @@ function stableProfile(value) {
   if (Array.isArray(value)) return `[${value.map(stableProfile).join(',')}]`;
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stableProfile(value[k])}`).join(',')}}`;
   return JSON.stringify(value);
+}
+
+
+function cloudEqual(a,b){return stableProfile(a)===stableProfile(b);}
+function cloudCopy(v){return v===undefined?undefined:JSON.parse(JSON.stringify(v));}
+function cloudPlain(v){return v!==null&&typeof v==='object'&&!Array.isArray(v);}
+function cloudBase(){
+ try{
+  const v=validateCloudRecoveryProfile(JSON.parse(localStorage.getItem(CLOUD_SYNC_BASELINE)||'null'));
+  return cloudEqual(v,JSON.parse(localStorage.getItem(CLOUD_SYNC_HASH)||'null'))?v:null;
+ }catch{return null;}
+}
+function cloudRemember(profile,revision){
+ const raw=JSON.stringify(validateCloudRecoveryProfile(profile));
+ localStorage.setItem(CLOUD_SYNC_BASELINE,raw);
+ if(localStorage.getItem(CLOUD_SYNC_BASELINE)!==raw)throw Error('Baseline was not saved');
+ localStorage.setItem(CLOUD_REVISION_KEY,String(revision));
+ localStorage.setItem(CLOUD_SYNC_HASH,stableProfile(profile));
+}
+function cloudMerge(base,local,remote){
+ const conflicts=[];
+ const walk=(a,b,c,path)=>{
+  if(cloudEqual(b,c))return cloudCopy(b);
+  if(cloudEqual(b,a))return cloudCopy(c);
+  if(cloudEqual(c,a))return cloudCopy(b);
+  if(!cloudPlain(b)||!cloudPlain(c)||(!cloudPlain(a)&&a!==undefined)){
+   conflicts.push(path.join('.'));return cloudCopy(b);
+  }
+  const out={};
+  for(const k of new Set([...Object.keys(a||{}),...Object.keys(b),...Object.keys(c)])){
+   const v=walk(a?.[k],b[k],c[k],[...path,k]);
+   if(v!==undefined)out[k]=v;
+  }
+  return out;
+ };
+ const result=walk(base,local,remote,[]);
+ const changed=(p,k)=>!cloudEqual(base[k],p[k]);
+ const dates=(p,k)=>Object.keys(p[k]||{}).filter(d=>!cloudEqual(base[k]?.[d],p[k][d]));
+ const localLedger=dates(local,'rewardLedger'),remoteLedger=dates(remote,'rewardLedger');
+ const ld=new Set([...dates(local,'days'),...localLedger]);
+ for(const d of [...dates(remote,'days'),...remoteLedger])if(ld.has(d))conflicts.push('daily-record:'+d);
+ if(localLedger.some(a=>remoteLedger.some(b=>a.slice(0,7)===b.slice(0,7))))conflicts.push('reward-period-overlap');
+ const rewards=['days','rewardLedger','mildDays'];
+ const policy=['protocolEdits','scheduleHistory','customProtocols'];
+ const spending=['purchased','purchaseRecords','redemptions','customMarketItems','legacyMarketItems'];
+ const any=(p,keys)=>keys.some(k=>changed(p,k));
+ if((any(local,rewards)&&any(remote,policy))||(any(remote,rewards)&&any(local,policy)))conflicts.push('rewards-vs-protocol-policy');
+ if((any(local,rewards)&&any(remote,spending))||(any(remote,rewards)&&any(local,spending)))conflicts.push('rewards-vs-spending');
+ if(any(local,spending)&&any(remote,spending)&&!cloudEqual(local.purchaseRecords,remote.purchaseRecords))conflicts.push('concurrent-spending');
+ if(changed(local,'historicalCareerSeed')||changed(remote,'historicalCareerSeed'))conflicts.push('historical-career-seed');
+ try{validateCloudRecoveryProfile(result);}catch{conflicts.push('invalid-merged-profile');}
+ return {ok:conflicts.length===0,profile:result,conflicts:[...new Set(conflicts)]};
+}
+function saveCloudConflict(local,remote,revision,details){
+ const raw=JSON.stringify({format:'GHOSTED_V79_CONFLICT',createdAt:new Date().toISOString(),revision,local,remote,details});
+ localStorage.setItem(CLOUD_SYNC_CONFLICT,raw);
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)!==raw)throw Error('Conflict copies could not be preserved');
+ cloudSync.mode='conflict-protected';
+ cloudSync.lastError='Conflict protected: '+details.join(', ');
+}
+function updateCloudView(profile,original){
+ if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return false;
+ if(!window.GHOSTED_CAN_APPLY_CLOUD_PROFILE?.()||!window.GHOSTED_APPLY_CLOUD_PROFILE)return false;
+ const raw=JSON.stringify(validateCloudRecoveryProfile(profile));
+ if(!window.GHOSTED_APPLY_CLOUD_PROFILE(raw))return false;
+ if(!cloudEqual(JSON.parse(localStorage.getItem(CLOUD_STORAGE_KEY)),profile))throw Error('Cloud view did not accept profile');
+ return true;
+}
+function cloudNotice(message){
+ const el=document.getElementById('toast');if(!el)return;
+ el.textContent=message;el.classList.add('show');
+ clearTimeout(window.__ghostedCloudNotice);window.__ghostedCloudNotice=setTimeout(()=>el.classList.remove('show'),1700);
 }
 
 function stopCloudSync(reason = 'disabled') {
@@ -378,75 +452,82 @@ function stopCloudSync(reason = 'disabled') {
   return { ...cloudSync };
 }
 
-async function syncCycle() {
-  if (!cloudSync.enabled || cloudSync.busy || !navigator.onLine) return { skipped: true };
-  cloudSync.busy = true;
-  try {
-    const session = await requireCloudSession();
-    if (session.userId !== CLOUD_OWNER_ID) throw new Error('Unexpected operator account');
-    const acknowledged = Number(localStorage.getItem(CLOUD_REVISION_KEY));
-    const baseline = localStorage.getItem(CLOUD_SYNC_HASH);
-    if (!baseline || !Number.isSafeInteger(acknowledged) || acknowledged < 1) throw new Error('No trusted sync baseline; use previewRestore / manual restore');
-    const localRaw = localStorage.getItem(CLOUD_STORAGE_KEY);
-    if (!localRaw) throw new Error('Missing local profile; sync stopped');
-    const localProfile = validateCloudRecoveryProfile(JSON.parse(localRaw));
-    const localHash = stableProfile(localProfile);
-    const remote = await cloudReadSnapshot();
-    const remoteRevision = Number(remote.revision);
-    const remoteHash = stableProfile(remote.payload);
-    const localDirty = localHash !== baseline;
-    const remoteDirty = remoteRevision !== acknowledged;
-    if (remoteDirty && localDirty) throw new Error('SYNC_CONFLICT: Both devices changed. No data overwritten. Export backup and resolve manually.');
-    if (remoteDirty && !localDirty) {
-      const snapshot = JSON.stringify({ format: 'GHOSTED_V76_AUTO_RECOVERY', createdAt: new Date().toISOString(), profile: localProfile, revision: acknowledged });
-      localStorage.setItem(CLOUD_SYNC_RECOVERY, snapshot);
-      if (localStorage.getItem(CLOUD_STORAGE_KEY) !== localRaw) throw new Error('Local profile changed during download');
-      const replacement = JSON.stringify(remote.payload);
-      localStorage.setItem(CLOUD_STORAGE_KEY, replacement);
-      localStorage.setItem(CLOUD_REVISION_KEY, String(remoteRevision));
-      localStorage.setItem(CLOUD_SYNC_HASH, remoteHash);
-      window.GHOSTED_NATIVE_DB?.mirror(CLOUD_STORAGE_KEY, replacement);
-      cloudSync.mode = 'remote-restored-reloading';
-      cloudSync.enabled = false;
-      window.location.reload();
-      return { downloadedRevision: remoteRevision, reloading: true };
-    }
-    if (!remoteDirty && remoteHash !== baseline) throw new Error('Cloud baseline mismatch; sync stopped');
-    if (localDirty) {
-      const revision = Number(await cloudRequest('/rest/v1/rpc/ghosted_put_snapshot', {
-        method: 'POST', token: session.accessToken,
-        body: { p_storage_key: CLOUD_STORAGE_KEY, p_payload: localProfile, p_expected_revision: acknowledged },
-      }));
-      if (revision !== acknowledged + 1) throw new Error('Unexpected cloud revision; sync stopped');
-      localStorage.setItem(CLOUD_REVISION_KEY, String(revision));
-      localStorage.setItem(CLOUD_SYNC_HASH, localHash);
-      cloudSync.mode = 'uploaded';
-      return { uploadedRevision: revision };
-    }
-    cloudSync.mode = 'in-sync';
-    return { inSync: true, revision: acknowledged };
-  } catch (error) {
-    const reason = String(error);
-    cloudSync.lastError = reason;
-
-    const temporary =
-      !navigator.onLine ||
-      error instanceof TypeError ||
-      /failed to fetch|networkerror|network request failed|fetch failed|timeout|HTTP 429|HTTP 5\d\d/i.test(reason);
-
-    if (temporary) {
-      cloudSync.mode = 'waiting-for-connection';
-      console.warn('[GHOSTED cloud sync] Will retry:', error);
-      return { retrying: true, reason };
-    }
-
-    stopCloudSync('halted');
-    console.error('[GHOSTED cloud sync] Halted safely:', error);
-    return { halted: true, reason };
-  } finally {
-    cloudSync.busy = false;
-    cloudSync.lastCheck = new Date().toISOString();
+async function syncCycle(){
+ if(!cloudSync.enabled||cloudSync.busy||!navigator.onLine)return {skipped:true};
+ cloudSync.busy=true;
+ try{
+  const session=await requireCloudSession();
+  if(session.userId!==CLOUD_OWNER_ID)throw Error('Unexpected operator');
+  const ack=Number(localStorage.getItem(CLOUD_REVISION_KEY));
+  const hash=localStorage.getItem(CLOUD_SYNC_HASH);
+  if(!hash||!Number.isSafeInteger(ack)||ack<1)throw Error('Missing trusted revision');
+  const original=localStorage.getItem(CLOUD_STORAGE_KEY);
+  if(!original)throw Error('Missing local profile');
+  const local=validateCloudRecoveryProfile(JSON.parse(original));
+  const remote=await cloudReadSnapshot();
+  const revision=Number(remote.revision);
+  const localDirty=!cloudEqual(local,JSON.parse(hash));
+  const remoteDirty=revision!==ack;
+  const base=cloudBase();
+  if(!remoteDirty&&!cloudEqual(remote.payload,JSON.parse(hash)))throw Error('Cloud baseline mismatch');
+  let next=null,merge=false;
+  if(localDirty&&remoteDirty){
+   if(!base){saveCloudConflict(local,remote.payload,revision,['trusted baseline missing']);return {conflict:true};}
+   const merged=cloudMerge(base,local,remote.payload);
+   if(!merged.ok){saveCloudConflict(local,remote.payload,revision,merged.conflicts);return {conflict:true,details:merged.conflicts};}
+   next=merged.profile;merge=true;
+  }else if(remoteDirty){next=remote.payload;}
+  if(next){
+   if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return {retry:true};
+   const backup=JSON.stringify({format:'GHOSTED_V79_BEFORE_CLOUD_APPLY',at:new Date().toISOString(),revision:ack,profile:local});
+   localStorage.setItem(CLOUD_SYNC_RECOVERY,backup);
+   if(localStorage.getItem(CLOUD_SYNC_RECOVERY)!==backup)throw Error('Cannot preserve local recovery copy');
+   if(!window.GHOSTED_CAN_APPLY_CLOUD_PROFILE?.())return {deferred:true,reason:'editing'};
+   if(merge){
+    // Avoid transient local overwrite if a concurrent remote write wins first.
+    const latest=await cloudReadSnapshot();
+    if(Number(latest.revision)!==revision)return {retry:true,reason:'cloud-advanced'};
+    if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return {retry:true,reason:'local-advanced'};
+    const newRev=Number(await cloudRequest('/rest/v1/rpc/ghosted_put_snapshot',{
+     method:'POST',token:session.accessToken,
+     body:{p_storage_key:CLOUD_STORAGE_KEY,p_payload:next,p_expected_revision:revision}
+    }));
+    if(newRev!==revision+1)throw Error('Unexpected merged revision');
+    cloudRemember(next,newRev);
+    // If the user edited during upload, defer applying; keep the new local change.
+    if(localStorage.getItem(CLOUD_STORAGE_KEY)===original)updateCloudView(next,original);
+    cloudSync.mode='merged';cloudSync.lastError=null;cloudNotice('CLOUD // MERGED');
+    return {mergedRevision:newRev};
+   }
+   if(!updateCloudView(next,original))return {deferred:true};
+   cloudRemember(next,revision);
+   cloudSync.mode='downloaded';cloudSync.lastError=null;cloudNotice('CLOUD // UPDATED');
+   return {downloadedRevision:revision};
   }
+  if(localDirty){
+   if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return {retry:true};
+   const newRev=Number(await cloudRequest('/rest/v1/rpc/ghosted_put_snapshot',{
+    method:'POST',token:session.accessToken,
+    body:{p_storage_key:CLOUD_STORAGE_KEY,p_payload:local,p_expected_revision:ack}
+   }));
+   if(newRev!==ack+1)throw Error('Unexpected upload revision');
+   cloudRemember(local,newRev);
+   cloudSync.mode='uploaded';cloudSync.lastError=null;return {uploadedRevision:newRev};
+  }
+  if(!base)cloudRemember(remote.payload,revision);
+  cloudSync.mode='in-sync';cloudSync.lastError=null;return {inSync:true,revision};
+ }catch(error){
+  const reason=String(error);cloudSync.lastError=reason;
+  if(!navigator.onLine||error instanceof TypeError||/failed to fetch|networkerror|fetch failed|timeout|HTTP 429|HTTP 5\d\d/i.test(reason)){
+   cloudSync.mode='waiting-for-connection';return {retrying:true,reason};
+  }
+  if(/GHOSTED_REVISION_CONFLICT|revision conflict/i.test(reason)){
+   cloudSync.mode='cloud-race-retry';return {retrying:true,reason};
+  }
+  stopCloudSync('halted');cloudSync.lastError=reason;
+  console.error('[GHOSTED cloud sync] Paused safely:',error);
+  return {halted:true,reason};
+ }finally{cloudSync.busy=false;cloudSync.lastCheck=new Date().toISOString();}
 }
 
 async function enableCloudSync() {
@@ -570,6 +651,10 @@ async function bootstrapCloudProfile() {
       }
     }
     if (localStorage.getItem(CLOUD_SYNC_HASH) && cloudSync.mode !== 'needs-manual-reconciliation') {
+      if (stableProfile(remote.payload) === localStorage.getItem(CLOUD_SYNC_HASH)) {
+        const saved = cloudBase();
+        if (!saved) cloudRemember(remote.payload, remoteRevision);
+      }
       localStorage.setItem(CLOUD_SYNC_ARMED, '1');
       cloudSync.enabled = true;
       cloudSync.mode = 'running';
