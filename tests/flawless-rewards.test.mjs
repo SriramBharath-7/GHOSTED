@@ -64,6 +64,6 @@ test('different offline reward dates with shared quota are blocked instead of do
  combined.days['2026-10-31']=[2];combined.days['2026-11-01']=[2];
  combined.rewardLedger['2026-10-31']=l.rewardLedger['2026-10-31'];
  combined.rewardLedger['2026-11-01']=r.rewardLedger['2026-11-01'];
- const result=reviewer([1,2],['2@2026-11-02'])(combined,b,l,r);
+ const result=reviewer([1,2],['2@2026-11-01'])(combined,b,l,r);
  assert.equal(result.ok,false);assert.match(result.reason,/quota/);
 });
