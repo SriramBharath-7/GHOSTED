@@ -26,7 +26,9 @@ drop policy if exists ghosted_receipts_insert_own on public.ghosted_operation_re
 create policy ghosted_receipts_insert_own on public.ghosted_operation_receipts
  for insert to authenticated with check (owner_id = (select auth.uid()));
 revoke all on public.ghosted_operation_receipts from anon, public;
-grant select, insert on public.ghosted_operation_receipts to authenticated;
+-- Clients may inspect only their own receipts. They must NEVER INSERT a
+-- receipt directly, because a forged receipt could falsely acknowledge an upload.
+grant select on public.ghosted_operation_receipts to authenticated;
 
 create or replace function public.ghosted_put_snapshot_v8(
   p_storage_key text,
@@ -35,7 +37,9 @@ create or replace function public.ghosted_put_snapshot_v8(
   p_operation_id uuid
 ) returns bigint
 language plpgsql
-security invoker
+-- The authenticated RPC alone is allowed to insert immutable receipts.
+-- auth.uid() and the storage-key check still enforce the user boundary.
+security definer
 set search_path = ''
 as $$
 declare
