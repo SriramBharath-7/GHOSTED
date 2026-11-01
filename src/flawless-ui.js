@@ -44,6 +44,7 @@ export function openFlawlessPanel(api) {
   actions.append(el);
  }
  button('[ RESTART SYNC ]',api.restart);
+ button('[ RECONNECT ACCOUNT ]',api.reconnect);
  button('[ DIAGNOSTICS ]',async()=>({note:JSON.stringify(await api.diagnostics(),null,2)}));
  button('[ EXPORT PROFILE ]',api.exportProfile);
  button('[ EXPORT JOURNAL ]',api.exportJournal);
