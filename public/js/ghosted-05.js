@@ -1823,7 +1823,10 @@ function hardwareFeedbackPrefs(){return state.settings?.feedback||{sound:true,ha
 function hardwareMotionAllowed(){return !!hardwareFeedbackPrefs().animations&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
 function hardwareTone(ctx,freq,start,duration,type='triangle',gain=.4){
  const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.setValueAtTime(freq,start);o.frequency.exponentialRampToValueAtTime(Math.max(35,freq*.78),start+duration);
- const volume=.19*(Number(hardwareFeedbackPrefs().volume)||0)/100*gain;
+ // Mobile handset speakers need a stronger signal than the web preview.
+ // The highest per-voice envelope remains below 0.5 to prevent clipping.
+ const baseGain=window.GHOSTED_OFFLINE_NATIVE ? .72 : .19;
+ const volume=Math.min(.48,baseGain*(Number(hardwareFeedbackPrefs().volume)||0)/100*gain);
  g.gain.setValueAtTime(.00001,start);g.gain.exponentialRampToValueAtTime(Math.max(.00002,volume),start+.007);g.gain.exponentialRampToValueAtTime(.00001,start+duration);
  o.connect(g).connect(ctx.destination);o.start(start);o.stop(start+duration+.012);
 }
