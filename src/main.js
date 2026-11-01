@@ -739,6 +739,13 @@ function flawlessPanel(){
    conflict:!!localStorage.getItem(CLOUD_SYNC_CONFLICT)
   }),
   restart:restartFlawlessSync,diagnostics:flawlessDiagnostics,
+  reconnect:async()=>{
+   const r=await cloudSignIn();
+   if(!r.ok)return {note:'Sign-in cancelled; local data preserved'};
+   if(localStorage.getItem(CLOUD_SYNC_CONFLICT))return {note:'Signed in. Conflict still requires operator review'};
+   const resumed=await restartFlawlessSync();
+   return {note:resumed?.reason||'Account reconnected and sync restarted'};
+  },
   exportProfile:()=>{cloudDownloadLocalBackup(localStorage.getItem(CLOUD_STORAGE_KEY));return {note:'Verify public backup in Downloads'};},
   exportJournal:()=>{
    const raw=publicJournal.export();
