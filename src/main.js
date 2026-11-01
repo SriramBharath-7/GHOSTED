@@ -147,11 +147,17 @@ const CLOUD_OWNER_ID = '9c63d03e-cafd-41bb-b753-72b05daa0710';
 const CLOUD_URL = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const CLOUD_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
 let cloudSession = null;
+const activeCloudRequests = new Set();
 const cloudState = { configured: !!(CLOUD_URL && CLOUD_KEY), signedIn: false, lastError: null };
 
 async function cloudRequest(path, { method = 'GET', body, token, extraHeaders = {} } = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  activeCloudRequests.add(controller);
+  try {
   if (!cloudState.configured) throw new Error('Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY first');
   const response = await fetch(`${CLOUD_URL}${path}`, {
+    signal: controller.signal,
     method,
     headers: {
       apikey: CLOUD_KEY,
@@ -164,6 +170,7 @@ async function cloudRequest(path, { method = 'GET', body, token, extraHeaders = 
   const value = await response.json().catch(() => null);
   if (!response.ok) throw new Error(value?.message || value?.msg || value?.error_description || value?.error || `HTTP ${response.status}`);
   return value;
+  } finally { clearTimeout(timeout); activeCloudRequests.delete(controller); }
 }
 
 async function cloudSignIn() {
@@ -362,7 +369,7 @@ const CLOUD_SYNC_SESSION = 'ghosted:cloud:session:v76';
 const CLOUD_SYNC_ARMED = 'ghosted:cloud:armed:v76';
 const CLOUD_SYNC_BASELINE = 'ghosted:cloud:baseline:v79';
 const CLOUD_SYNC_CONFLICT = 'ghosted:cloud:conflict:v79';
-const cloudSync = { enabled: false, busy: false, mode: 'off', lastCheck: null, lastError: null };
+const cloudSync = { enabled: false, busy: false, mode: 'off', lastCheck: null, lastError: null, failures: 0, lastSuccess: null };
 let cloudSyncTimer = null;
 
 function stableProfile(value) {
@@ -478,6 +485,7 @@ function saveCloudConflict(local,remote,revision,details){
   if(localStorage.getItem(CLOUD_SYNC_CONFLICT)!==raw)throw Error('Conflict copies could not be preserved');
  }
  cloudSync.mode='conflict-protected';
+ cloudSync.failures=0;
  cloudSync.lastError='Conflict protected: '+details.join(', ');
  cloudSync.enabled=false;
  if(cloudSyncTimer)clearInterval(cloudSyncTimer);
@@ -585,6 +593,18 @@ async function syncCycle(){
    const merged=cloudMerge(base,local,remote.payload);
    if(!merged.ok){saveCloudConflict(local,remote.payload,revision,merged.conflicts);return {conflict:true,details:merged.conflicts};}
    next=merged.profile;merge=true;
+   // Reconcile Perfect Day with the actual habit schedule, never by guessing from JSON.
+   const overlaps=Object.keys(next.days||{}).filter(day=>
+    !cloudEqual(base.days?.[day],local.days?.[day])&&
+    !cloudEqual(base.days?.[day],remote.payload.days?.[day])&&
+    !cloudEqual(next.days?.[day],local.days?.[day])&&
+    !cloudEqual(next.days?.[day],remote.payload.days?.[day]));
+   if(overlaps.length){
+    if(!window.GHOSTED_RECONCILE_CLOUD_MERGE)return {deferred:true,reason:'habit-engine-loading'};
+    const reviewed=window.GHOSTED_RECONCILE_CLOUD_MERGE(next,base,local,remote.payload);
+    if(!reviewed?.ok){saveCloudConflict(local,remote.payload,revision,['Reward review: '+String(reviewed?.reason||'not verified')]);return {conflict:true};}
+    next=validateCloudRecoveryProfile(reviewed.profile);
+   }
   }else if(remoteDirty){next=remote.payload;}
   if(next){
    if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return {retry:true};
@@ -637,15 +657,17 @@ async function syncCycle(){
   cloudSync.mode='in-sync';cloudSync.lastError=null;return {inSync:true,revision};
  }catch(error){
   const reason=String(error);cloudSync.lastError=reason;
-  if(!navigator.onLine||error instanceof TypeError||/failed to fetch|networkerror|fetch failed|timeout|HTTP 429|HTTP 5\d\d/i.test(reason)){
-   cloudSync.mode='waiting-for-connection';return {retrying:true,reason};
+  if(!navigator.onLine||error instanceof TypeError||/AbortError|aborted|failed to fetch|networkerror|fetch failed|timeout|HTTP 429|HTTP 5\d\d/i.test(reason)){
+   cloudSync.mode='waiting-for-connection';cloudSync.failures=Math.min(50,cloudSync.failures+1);return {retrying:true,reason};
   }
   if(/GHOSTED_REVISION_CONFLICT|revision conflict/i.test(reason)){
    cloudSync.mode='cloud-race-retry';return {retrying:true,reason};
   }
-  stopCloudSync('halted');cloudSync.lastError=reason;
+  cloudSync.mode='needs-attention';cloudSync.enabled=false;
+  if(cloudSyncTimer)clearInterval(cloudSyncTimer);cloudSyncTimer=null;
+  cloudSync.lastError=reason;cloudNotice('SYNC NEEDS ATTENTION // OPEN SETTINGS');
   console.error('[GHOSTED cloud sync] Paused safely:',error);
-  return {halted:true,reason};
+  return {needsAttention:true,reason};
  }finally{cloudSync.busy=false;cloudSync.lastCheck=new Date().toISOString();}
 }
 
@@ -769,6 +791,12 @@ async function bootstrapCloudProfile() {
         }
       }
     }
+    if (localStorage.getItem(CLOUD_SYNC_CONFLICT)) {
+      cloudSync.mode='conflict-protected';cloudSync.enabled=false;
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',cloudConflictBanner,{once:true});
+      else cloudConflictBanner();
+      return;
+    }
     if (localStorage.getItem(CLOUD_SYNC_HASH) && cloudSync.mode !== 'needs-manual-reconciliation') {
       if (stableProfile(remote.payload) === localStorage.getItem(CLOUD_SYNC_HASH)) {
         const saved = cloudBase();
@@ -827,7 +855,10 @@ window.GHOSTED_CLOUD = Object.freeze({
     // No reload is needed if this is the pre-script startup sign-in.
     if (before !== localStorage.getItem(CLOUD_STORAGE_KEY)) {
       await ghostedStartup;
-      window.location.reload();
+      const profile=JSON.parse(localStorage.getItem(CLOUD_STORAGE_KEY));
+      if(window.GHOSTED_APPLY_CLOUD_PROFILE && window.GHOSTED_CAN_APPLY_CLOUD_PROFILE?.())
+        window.GHOSTED_APPLY_CLOUD_PROFILE(JSON.stringify(profile));
+      else cloudNotice('PROFILE UPDATED // OPEN SYNC CONTROL');
     }
     return { ...result, sync: cloudSync.mode };
   },
