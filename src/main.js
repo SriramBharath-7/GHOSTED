@@ -499,8 +499,18 @@ function cloudMerge(base,local,remote){
   if(!cloudEqual(local.mildDays?.[day],base.mildDays?.[day])||!cloudEqual(remote.mildDays?.[day],base.mildDays?.[day]))continue;
   const br=base.rewardLedger?.[day]||{xp:0,coins:0,bonus:false,awards:{}};
   const lr=local.rewardLedger?.[day],rr=remote.rewardLedger?.[day];
-  if(!lr||!rr||br.bonus||lr.bonus||rr.bonus)continue;
-  const extras=({xp,coins,awards,...other})=>other;
+  if(!lr||!rr)continue;
+  // A frozen Perfect Day can be carried across independent completions,
+  // provided both sides agree on its exact credited scope. Never double-pay.
+  if(br.bonus&&(!lr.bonus||!rr.bonus))continue; // Undo/bonus reversal needs review.
+  const bonusScope=row=>Array.isArray(row.bonusScope)&&row.bonusScope.length
+   ?[...row.bonusScope].sort((a,b)=>a-b):null;
+  const paidScopes=[br,lr,rr].filter(row=>row.bonus).map(bonusScope);
+  if(paidScopes.some(scope=>scope===null))continue;
+  if(paidScopes.some(scope=>!cloudEqual(scope,paidScopes[0])))continue;
+  const bonus=!!(br.bonus||lr.bonus||rr.bonus);
+  const chosenScope=paidScopes[0]||null;
+  const extras=({xp,coins,awards,bonus,bonusScope,...other})=>other;
   if(!cloudEqual(extras(br),extras(lr))||!cloudEqual(extras(br),extras(rr)))continue;
   const additions=(row,ids)=>{
    if(!row.awards||!cloudPlain(row.awards)||!Number.isSafeInteger(row.xp)||!Number.isSafeInteger(row.coins))return null;
@@ -511,17 +521,22 @@ function cloudMerge(base,local,remote){
     if(!ids.some(id=>String(id)===key)||!value||!Number.isSafeInteger(value.xp)||value.xp<0||!Number.isSafeInteger(value.coins)||value.coins<0)return null;
     added[key]=value;xp+=value.xp;coins+=value.coins;
    }
-   if(!Number.isSafeInteger(xp)||!Number.isSafeInteger(coins)||row.xp-br.xp!==xp||row.coins-br.coins!==coins)return null;
+   const freshBonus=!!row.bonus&&!br.bonus;
+   if(!Number.isSafeInteger(xp)||!Number.isSafeInteger(coins)||
+     row.xp-br.xp!==xp+(freshBonus?50:0)||
+     row.coins-br.coins!==coins+(freshBonus?20:0))return null;
    return {added,xp,coins};
   };
   const la=additions(lr,left),ra=additions(rr,right);
   if(!la||!ra)continue;
-  const xp=br.xp+la.xp+ra.xp,coins=br.coins+la.coins+ra.coins;
+  const xp=br.xp+la.xp+ra.xp+(bonus&&!br.bonus?50:0);
+  const coins=br.coins+la.coins+ra.coins+(bonus&&!br.bonus?20:0);
   if(!Number.isSafeInteger(xp)||!Number.isSafeInteger(coins))continue;
   result.days=result.days||{};
   result.days[day]=[...new Set([...bday,...left,...right])].sort((a,b)=>a-b);
   result.rewardLedger=result.rewardLedger||{};
-  result.rewardLedger[day]={...br,xp,coins,awards:{...(br.awards||{}),...la.added,...ra.added}};
+  result.rewardLedger[day]={...br,xp,coins,bonus,awards:{...(br.awards||{}),...la.added,...ra.added}};
+  if(chosenScope)result.rewardLedger[day].bonusScope=chosenScope;
   for(let j=conflicts.length-1;j>=0;j--){
    if(conflicts[j]==='days.'+day||conflicts[j].startsWith('rewardLedger.'+day+'.')||conflicts[j]==='rewardLedger.'+day||conflicts[j]==='daily-record:'+day)conflicts.splice(j,1);
   }
