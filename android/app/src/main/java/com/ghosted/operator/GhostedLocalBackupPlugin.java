@@ -73,6 +73,11 @@ public class GhostedLocalBackupPlugin extends Plugin {
         }
         try {
             Uri uri = result.getData().getData();
+            // Reject cloud-backed providers (Drive, etc). Backups must live on this phone.
+            if (!"com.android.externalstorage.documents".equals(uri.getAuthority())) {
+                call.reject("Choose a folder under this device's Internal storage / Documents, not a cloud provider");
+                return;
+            }
             getContext().getContentResolver().takePersistableUriPermission(uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             prefs().edit().putString(PREF_TREE, uri.toString()).apply();
