@@ -140,6 +140,7 @@ async function startGhosted() {
   for (let i = 1; i <= 5; i++) {
     await injectClassic(`/js/ghosted-0${i}.js`);
   }
+  if(cloudSync?.enabled)setTimeout(()=>{void syncCycle();},300);
 }
 
 let ghostedStartup;
@@ -758,18 +759,15 @@ async function syncCycle(){
    const merged=cloudMerge(base,local,remote.payload);
    if(!merged.ok){saveCloudConflict(local,remote.payload,revision,merged.conflicts);return {conflict:true,details:merged.conflicts};}
    next=merged.profile;merge=true;
-   // Reconcile Perfect Day with the actual habit schedule, never by guessing from JSON.
-   const overlaps=Object.keys(next.days||{}).filter(day=>
-    !cloudEqual(base.days?.[day],local.days?.[day])&&
-    !cloudEqual(base.days?.[day],remote.payload.days?.[day])&&
-    !cloudEqual(next.days?.[day],local.days?.[day])&&
-    !cloudEqual(next.days?.[day],remote.payload.days?.[day]));
-   if(overlaps.length){
-    if(!window.GHOSTED_RECONCILE_CLOUD_MERGE)return {deferred:true,reason:'habit-engine-loading'};
-    const reviewed=window.GHOSTED_RECONCILE_CLOUD_MERGE(next,base,local,remote.payload);
-    if(!reviewed?.ok){saveCloudConflict(local,remote.payload,revision,['Reward review: '+String(reviewed?.reason||'not verified')]);return {conflict:true};}
-    next=validateCloudRecoveryProfile(reviewed.profile);
+   // Validate the entire merged reward timeline, including cross-day quotas.
+   // The habit engine decides eligibility; the cloud layer never guesses.
+   if(!window.GHOSTED_RECONCILE_CLOUD_MERGE)return {deferred:true,reason:'habit-engine-loading'};
+   const reviewed=window.GHOSTED_RECONCILE_CLOUD_MERGE(next,base,local,remote.payload);
+   if(!reviewed?.ok){
+    saveCloudConflict(local,remote.payload,revision,['Reward review: '+String(reviewed?.reason||'not verified')]);
+    return {conflict:true};
    }
+   next=validateCloudRecoveryProfile(reviewed.profile);
   }else if(remoteDirty){next=remote.payload;}
   if(next){
    if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return {retry:true};
