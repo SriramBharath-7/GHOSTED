@@ -1,4 +1,6 @@
 import { Capacitor } from '@capacitor/core';
+import { openFlawlessPanel } from './flawless-ui.js';
+import { PublicJournal } from './flawless-journal.js';
 import { CapacitorSQLite } from '@capacitor-community/sqlite';
 
 // GHOSTED V7.1 â€” Android SQLite mirror and recovery layer.
@@ -132,10 +134,13 @@ function injectClassic(url) {
 // Async function avoids top-level await so Vite's default ES2020 target can build.
 async function startGhosted() {
   await prepareNativeStorage();
+  try { publicJournal.repair(localStorage.getItem('ghosted:web-os:personal:history:v68')); }
+  catch(error) { console.warn('[GHOSTED] Public operation journal needs review:',error); }
   await bootstrapCloudProfile();
   for (let i = 1; i <= 5; i++) {
     await injectClassic(`/js/ghosted-0${i}.js`);
   }
+  if(cloudSync?.enabled)setTimeout(()=>{void syncCycle();},300);
 }
 
 let ghostedStartup;
@@ -146,12 +151,67 @@ const CLOUD_REVISION_KEY = 'ghosted:cloud:ack-revision:v1';
 const CLOUD_OWNER_ID = '9c63d03e-cafd-41bb-b753-72b05daa0710';
 const CLOUD_URL = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const CLOUD_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+// Enable only AFTER the reviewed Supabase SQL migration has been applied.
+const CLOUD_V8_RECEIPTS = import.meta.env.VITE_GHOSTED_V8_RPC_ENABLED === 'true';
+const CLOUD_V8_INTENT = 'ghosted:cloud:upload-intent:v8';
 let cloudSession = null;
+const activeCloudRequests = new Set();
+const publicJournal = new PublicJournal(window.localStorage);
+window.GHOSTED_SYNC_APPLYING = false;
+window.GHOSTED_SYNC_PREPARE_PUBLIC_WRITE = (before,after) => window.GHOSTED_SYNC_APPLYING?null:publicJournal.prepare(before,after);
+window.GHOSTED_SYNC_COMMIT_PUBLIC_WRITE = id => publicJournal.commit(id);
+window.GHOSTED_SYNC_JOURNAL_STATUS = () => publicJournal.status();
+window.GHOSTED_SYNC_ACK_LOCAL = profile => {
+  try { publicJournal.acknowledge(profile,localStorage.getItem('ghosted:web-os:personal:history:v68')); }
+  catch(error){console.warn('[GHOSTED] Local operation journal acknowledgement needs review:',error);}
+};
+window.GHOSTED_SYNC_NOTIFY_PUBLIC_WRITE = () => {
+  if(cloudSync?.enabled&&navigator.onLine)setTimeout(()=>{void syncCycle();},400);
+};
 const cloudState = { configured: !!(CLOUD_URL && CLOUD_KEY), signedIn: false, lastError: null };
 
+
+function v8WriteIntent(payload) {
+ const expected=payload.p_expected_revision??null;
+ const hash=stableProfile(payload.p_payload);
+ const existing=JSON.parse(localStorage.getItem(CLOUD_V8_INTENT)||'null');
+ if(existing?.hash===hash&&existing.expected===expected&&existing.storageKey===CLOUD_STORAGE_KEY)
+  return existing.id;
+ const id=crypto.randomUUID();
+ const localAtWrite=localStorage.getItem(CLOUD_STORAGE_KEY);
+ if(!localAtWrite)throw Error('No local public profile for upload intent');
+ const localHash=stableProfile(validateCloudRecoveryProfile(JSON.parse(localAtWrite)));
+ const intent={id,expected,hash,localHash,storageKey:CLOUD_STORAGE_KEY,createdAt:new Date().toISOString()};
+ const serialized=JSON.stringify(intent);
+ localStorage.setItem(CLOUD_V8_INTENT,serialized);
+ if(localStorage.getItem(CLOUD_V8_INTENT)!==serialized)
+  throw Error('Upload operation ID not durable; cloud write blocked');
+ return id;
+}
+function v8AcknowledgeIntent(profile,revision){
+ if(!CLOUD_V8_RECEIPTS)return;
+ try{
+  const saved=JSON.parse(localStorage.getItem(CLOUD_V8_INTENT)||'null');
+  if(saved&&saved.hash===stableProfile(profile)&&Number(revision)>Number(saved.expected??0))
+   localStorage.removeItem(CLOUD_V8_INTENT);
+ }catch(error){console.warn('[GHOSTED] Retained unverified upload intent',error);}
+}
+
 async function cloudRequest(path, { method = 'GET', body, token, extraHeaders = {} } = {}) {
+  if(CLOUD_V8_RECEIPTS && path==='/rest/v1/rpc/ghosted_put_snapshot') {
+    // Identity survives retries and app restarts; the receipt and snapshot
+    // commit atomically in the optional V8 Supabase RPC.
+    const id=v8WriteIntent(body);
+    body={...body,p_operation_id:id};
+    path='/rest/v1/rpc/ghosted_put_snapshot_v8';
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  activeCloudRequests.add(controller);
+  try {
   if (!cloudState.configured) throw new Error('Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY first');
   const response = await fetch(`${CLOUD_URL}${path}`, {
+    signal: controller.signal,
     method,
     headers: {
       apikey: CLOUD_KEY,
@@ -164,6 +224,7 @@ async function cloudRequest(path, { method = 'GET', body, token, extraHeaders = 
   const value = await response.json().catch(() => null);
   if (!response.ok) throw new Error(value?.message || value?.msg || value?.error_description || value?.error || `HTTP ${response.status}`);
   return value;
+  } finally { clearTimeout(timeout); activeCloudRequests.delete(controller); }
 }
 
 async function cloudSignIn() {
@@ -249,7 +310,7 @@ async function cloudUpload() {
   });
   if (!Number.isSafeInteger(Number(revision)) || Number(revision) < 1) throw new Error('Unexpected revision result');
   window.localStorage.setItem(CLOUD_REVISION_KEY, String(revision));
-  window.localStorage.setItem(CLOUD_SYNC_HASH, stableProfile(profile));
+  cloudRemember(profile, Number(revision));
   return { ok: true, uploadedRevision: Number(revision), note: 'Explicit upload finished; automatic sync is not enabled' };
 }
 
@@ -340,7 +401,7 @@ async function cloudRestore() {
     window.localStorage.setItem(CLOUD_STORAGE_KEY, newRaw);
     if (window.localStorage.getItem(CLOUD_STORAGE_KEY) !== newRaw) throw new Error('Local write readback mismatch');
     window.localStorage.setItem(CLOUD_REVISION_KEY, String(fresh.revision));
-    window.localStorage.setItem(CLOUD_SYNC_HASH, stableProfile(fresh.payload));
+    cloudRemember(fresh.payload, Number(fresh.revision));
     window.GHOSTED_NATIVE_DB?.mirror(CLOUD_STORAGE_KEY, newRaw);
   } catch (error) {
     if (originalRaw === null) window.localStorage.removeItem(CLOUD_STORAGE_KEY);
@@ -362,7 +423,7 @@ const CLOUD_SYNC_SESSION = 'ghosted:cloud:session:v76';
 const CLOUD_SYNC_ARMED = 'ghosted:cloud:armed:v76';
 const CLOUD_SYNC_BASELINE = 'ghosted:cloud:baseline:v79';
 const CLOUD_SYNC_CONFLICT = 'ghosted:cloud:conflict:v79';
-const cloudSync = { enabled: false, busy: false, mode: 'off', lastCheck: null, lastError: null };
+const cloudSync = { enabled: false, busy: false, mode: 'off', lastCheck: null, lastError: null, failures: 0, lastSuccess: null, nextRetryAt: 0 };
 let cloudSyncTimer = null;
 
 function stableProfile(value) {
@@ -376,10 +437,15 @@ function cloudEqual(a,b){return stableProfile(a)===stableProfile(b);}
 function cloudCopy(v){return v===undefined?undefined:JSON.parse(JSON.stringify(v));}
 function cloudPlain(v){return v!==null&&typeof v==='object'&&!Array.isArray(v);}
 function cloudBase(){
- try{
-  const v=validateCloudRecoveryProfile(JSON.parse(localStorage.getItem(CLOUD_SYNC_BASELINE)||'null'));
-  return cloudEqual(v,JSON.parse(localStorage.getItem(CLOUD_SYNC_HASH)||'null'))?v:null;
- }catch{return null;}
+ const hash=localStorage.getItem(CLOUD_SYNC_HASH);
+ for(const raw of [localStorage.getItem(CLOUD_SYNC_BASELINE),null]){
+  try{
+   const profile=raw?JSON.parse(raw):JSON.parse(localStorage.getItem(CLOUD_SYNC_RECOVERY)||'null')?.profile;
+   const candidate=validateCloudRecoveryProfile(profile);
+   if(stableProfile(candidate)===hash)return candidate;
+  }catch{}
+ }
+ return null;
 }
 function cloudRemember(profile,revision){
  const raw=JSON.stringify(validateCloudRecoveryProfile(profile));
@@ -387,6 +453,10 @@ function cloudRemember(profile,revision){
  if(localStorage.getItem(CLOUD_SYNC_BASELINE)!==raw)throw Error('Baseline was not saved');
  localStorage.setItem(CLOUD_REVISION_KEY,String(revision));
  localStorage.setItem(CLOUD_SYNC_HASH,stableProfile(profile));
+ cloudSync.lastSuccess=new Date().toISOString();cloudSync.failures=0;cloudSync.nextRetryAt=0;
+ document.getElementById('ghosted-sync-attention')?.remove();
+ window.GHOSTED_SYNC_ACK_LOCAL?.(profile);
+ v8AcknowledgeIntent(profile,revision);
 }
 function cloudMerge(base,local,remote){
  const conflicts=[];
@@ -409,25 +479,78 @@ function cloudMerge(base,local,remote){
  const dates=(p,k)=>Object.keys(p[k]||{}).filter(d=>!cloudEqual(base[k]?.[d],p[k][d]));
  const localLedger=dates(local,'rewardLedger'),remoteLedger=dates(remote,'rewardLedger');
  const ld=new Set([...dates(local,'days'),...localLedger]);
- for(const d of [...dates(remote,'days'),...remoteLedger])if(ld.has(d))conflicts.push('daily-record:'+d);
- if(localLedger.some(a=>remoteLedger.some(b=>a.slice(0,7)===b.slice(0,7))))conflicts.push('reward-period-overlap');
+ for(const d of [...dates(remote,'days'),...remoteLedger]) {
+  if(ld.has(d) && (!cloudEqual(local.days?.[d],remote.days?.[d]) || !cloudEqual(local.rewardLedger?.[d],remote.rewardLedger?.[d])))
+   conflicts.push('daily-record:'+d);
+ }
+ // Independent completion additions on the same date can be merged only if
+ // both reward ledger deltas are exactly explained by disjoint award entries.
+ // Never infer an undo, changed reward, or Perfect Day bonus.
+ for(const day of new Set([...dates(local,'days'),...dates(remote,'days')])){
+  if(!dates(local,'days').includes(day)||!dates(remote,'days').includes(day))continue;
+  const bday=base.days?.[day]||[], lday=local.days?.[day], rday=remote.days?.[day];
+  if(!Array.isArray(bday)||!Array.isArray(lday)||!Array.isArray(rday))continue;
+  if([bday,lday,rday].some(a=>a.length!==new Set(a).size))continue;
+  const common=new Set(bday);
+  if(bday.some(id=>!lday.includes(id)||!rday.includes(id)))continue;
+  const left=lday.filter(id=>!common.has(id)),right=rday.filter(id=>!common.has(id));
+  if(!left.length||!right.length||left.some(id=>right.includes(id)))continue;
+  if(!cloudEqual(local.mildDays?.[day],base.mildDays?.[day])||!cloudEqual(remote.mildDays?.[day],base.mildDays?.[day]))continue;
+  const br=base.rewardLedger?.[day]||{xp:0,coins:0,bonus:false,awards:{}};
+  const lr=local.rewardLedger?.[day],rr=remote.rewardLedger?.[day];
+  if(!lr||!rr||br.bonus||lr.bonus||rr.bonus)continue;
+  const extras=({xp,coins,awards,...other})=>other;
+  if(!cloudEqual(extras(br),extras(lr))||!cloudEqual(extras(br),extras(rr)))continue;
+  const additions=(row,ids)=>{
+   if(!row.awards||!cloudPlain(row.awards)||!Number.isSafeInteger(row.xp)||!Number.isSafeInteger(row.coins))return null;
+   for(const [key,value] of Object.entries(br.awards||{}))if(!cloudEqual(row.awards[key],value))return null;
+   const added={};let xp=0,coins=0;
+   for(const [key,value] of Object.entries(row.awards)){
+    if(Object.hasOwn(br.awards||{},key))continue;
+    if(!ids.some(id=>String(id)===key)||!value||!Number.isSafeInteger(value.xp)||value.xp<0||!Number.isSafeInteger(value.coins)||value.coins<0)return null;
+    added[key]=value;xp+=value.xp;coins+=value.coins;
+   }
+   if(!Number.isSafeInteger(xp)||!Number.isSafeInteger(coins)||row.xp-br.xp!==xp||row.coins-br.coins!==coins)return null;
+   return {added,xp,coins};
+  };
+  const la=additions(lr,left),ra=additions(rr,right);
+  if(!la||!ra)continue;
+  const xp=br.xp+la.xp+ra.xp,coins=br.coins+la.coins+ra.coins;
+  if(!Number.isSafeInteger(xp)||!Number.isSafeInteger(coins))continue;
+  result.days=result.days||{};
+  result.days[day]=[...new Set([...bday,...left,...right])].sort((a,b)=>a-b);
+  result.rewardLedger=result.rewardLedger||{};
+  result.rewardLedger[day]={...br,xp,coins,awards:{...(br.awards||{}),...la.added,...ra.added}};
+  for(let j=conflicts.length-1;j>=0;j--){
+   if(conflicts[j]==='days.'+day||conflicts[j].startsWith('rewardLedger.'+day+'.')||conflicts[j]==='rewardLedger.'+day||conflicts[j]==='daily-record:'+day)conflicts.splice(j,1);
+  }
+ }
  const rewards=['days','rewardLedger','mildDays'];
  const policy=['protocolEdits','scheduleHistory','customProtocols'];
  const spending=['purchased','purchaseRecords','redemptions','customMarketItems','legacyMarketItems'];
  const any=(p,keys)=>keys.some(k=>changed(p,k));
  if((any(local,rewards)&&any(remote,policy))||(any(remote,rewards)&&any(local,policy)))conflicts.push('rewards-vs-protocol-policy');
  if((any(local,rewards)&&any(remote,spending))||(any(remote,rewards)&&any(local,spending)))conflicts.push('rewards-vs-spending');
- if(any(local,spending)&&any(remote,spending)&&!cloudEqual(local.purchaseRecords,remote.purchaseRecords))conflicts.push('concurrent-spending');
+ // Purchases are non-idempotent without shared operation IDs. Even identical
+ // looking purchase records may represent two real transactions.
+ if(any(local,spending)&&any(remote,spending))conflicts.push('concurrent-spending-needs-operator');
  if(changed(local,'historicalCareerSeed')||changed(remote,'historicalCareerSeed'))conflicts.push('historical-career-seed');
  try{validateCloudRecoveryProfile(result);}catch{conflicts.push('invalid-merged-profile');}
  return {ok:conflicts.length===0,profile:result,conflicts:[...new Set(conflicts)]};
 }
 function saveCloudConflict(local,remote,revision,details){
- const raw=JSON.stringify({format:'GHOSTED_V79_CONFLICT',createdAt:new Date().toISOString(),revision,local,remote,details});
- localStorage.setItem(CLOUD_SYNC_CONFLICT,raw);
- if(localStorage.getItem(CLOUD_SYNC_CONFLICT)!==raw)throw Error('Conflict copies could not be preserved');
+ if(!localStorage.getItem(CLOUD_SYNC_CONFLICT)){
+  const raw=JSON.stringify({format:'GHOSTED_V79_CONFLICT',createdAt:new Date().toISOString(),revision,local,remote,details});
+  localStorage.setItem(CLOUD_SYNC_CONFLICT,raw);
+  if(localStorage.getItem(CLOUD_SYNC_CONFLICT)!==raw)throw Error('Conflict copies could not be preserved');
+ }
  cloudSync.mode='conflict-protected';
+ cloudSync.failures=0;
  cloudSync.lastError='Conflict protected: '+details.join(', ');
+ cloudSync.enabled=false;
+ if(cloudSyncTimer)clearInterval(cloudSyncTimer);
+ cloudSyncTimer=null;
+ cloudConflictBanner();
 }
 function updateCloudView(profile,original){
  if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return false;
@@ -440,7 +563,224 @@ function updateCloudView(profile,original){
 function cloudNotice(message){
  const el=document.getElementById('toast');if(!el)return;
  el.textContent=message;el.classList.add('show');
- clearTimeout(window.__ghostedCloudNotice);window.__ghostedCloudNotice=setTimeout(()=>el.classList.remove('show'),1700);
+ clearTimeout(window.__ghostedCloudNotice);
+ window.__ghostedCloudNotice=setTimeout(()=>el.classList.remove('show'),2300);
+}
+function cloudConflictStatus(){
+ const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+ if(!raw)return {active:cloudSync.mode==='conflict-protected',saved:false,mode:cloudSync.mode,lastError:cloudSync.lastError};
+ try{
+  const c=JSON.parse(raw);
+  return {active:cloudSync.mode==='conflict-protected',saved:true,createdAt:c.createdAt,remoteRevision:c.revision,details:c.details,
+   localSavedDays:Object.keys(c.local?.days||{}).length,
+   remoteSavedDays:Object.keys(c.remote?.days||{}).length,
+   mode:cloudSync.mode,lastError:cloudSync.lastError};
+ }catch{return {active:cloudSync.mode==='conflict-protected',saved:true,corrupt:true,mode:cloudSync.mode};}
+}
+function exportCloudConflict(){
+ const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+ if(!raw)throw Error('No preserved conflict to export');
+ const bundle=JSON.stringify({format:'GHOSTED_V79_CONFLICT_EXPORT',exportedAt:new Date().toISOString(),originalConflict:JSON.parse(raw),currentLocal:JSON.parse(localStorage.getItem(CLOUD_STORAGE_KEY)||'null')});
+ const blob=new Blob([bundle],{type:'application/json'});
+ const url=URL.createObjectURL(blob);
+ const link=document.createElement('a');
+ link.href=url;
+ link.download='GHOSTED_DUAL_SYNC_RECOVERY_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+ document.body.append(link);
+ try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+ return {requested:true,note:'Check that the file downloaded. Both copies remain stored locally.'};
+}
+function cloudConflictBanner(){
+ if(!document.body||document.getElementById('ghosted-cloud-conflict'))return;
+ const box=document.createElement('div');
+ box.id='ghosted-cloud-conflict';box.setAttribute('role','status');
+ box.style.cssText='position:fixed;z-index:10095;top:8px;right:8px;max-width:min(285px,calc(100vw - 16px));background:#07150f;color:#e8bd6e;border:1px solid #a77a35;border-radius:6px;padding:8px 10px;font:11px/1.4 monospace;box-shadow:0 3px 16px #000b;';
+ const title=document.createElement('div');title.textContent='CLOUD PAUSED // COPIES PRESERVED';
+ const desc=document.createElement('div');desc.textContent='Conflicting progress needs review. No overwrite.';
+ desc.style.cssText='opacity:.85;margin:3px 0 6px;';
+ const save=document.createElement('button');save.type='button';save.textContent='SAVE BOTH';
+ save.style.cssText='color:#8ef1bc;background:#092318;border:1px solid #296a4a;border-radius:4px;padding:4px 8px;font:inherit;';
+ save.addEventListener('click',()=>{try{exportCloudConflict();cloudNotice('RECOVERY DOWNLOAD REQUESTED');}catch{cloudNotice('EXPORT FAILED — COPIES PRESERVED');}});
+ const retry=document.createElement('button');retry.type='button';retry.textContent='RECHECK';
+ retry.style.cssText='background:transparent;color:#8ef1bc;border:0;margin-left:6px;font:inherit;';
+ retry.addEventListener('click',()=>{retry.disabled=true;void resumeCloudSyncSafely().then(r=>{if(r.conflict)cloudNotice('STILL CONFLICTED — COPIES PRESERVED');else if(r.retrying)cloudNotice('WAITING FOR NETWORK');else cloudNotice('CLOUD RECHECKED');}).catch(()=>cloudNotice('RECHECK BLOCKED — COPIES SAFE')).finally(()=>{retry.disabled=false;});});
+ const hide=document.createElement('button');hide.type='button';hide.textContent='HIDE';
+ hide.style.cssText='background:transparent;color:#e8bd6e;border:0;margin-left:10px;font:inherit;';
+ hide.addEventListener('click',()=>box.remove());
+ box.append(title,desc,save,retry,hide);document.body.append(box);
+}
+async function resumeCloudSyncSafely(){
+ if(cloudSync.busy)return {busy:true};
+ if(!cloudState.configured)throw Error('Cloud not configured');
+ if(navigator.onLine)await requireCloudSession();
+ cloudSync.enabled=true;cloudSync.mode=navigator.onLine?'checking-conflict':'offline-queued';cloudSync.lastError=null;cloudSync.nextRetryAt=0;
+ if(cloudSyncTimer)clearInterval(cloudSyncTimer);
+ cloudSyncTimer=setInterval(()=>{void syncCycle();},15000);
+ localStorage.setItem(CLOUD_SYNC_ARMED,'1');
+ return syncCycle();
+}
+
+
+function cloudNeedsAttentionBanner(){
+ if(!document.body||document.getElementById('ghosted-sync-attention'))return;
+ const box=document.createElement('div');box.id='ghosted-sync-attention';
+ box.setAttribute('role','status');
+ box.style.cssText='position:fixed;z-index:10095;top:8px;right:8px;max-width:min(285px,calc(100vw - 16px));background:#07150f;color:#eac778;border:1px solid #9a7835;border-radius:6px;padding:8px 10px;font:11px/1.5 monospace;box-shadow:0 3px 16px #000b;';
+ const title=document.createElement('div');title.textContent='SYNC NEEDS ATTENTION';
+ const desc=document.createElement('div');desc.textContent='Your public progress remains local. Restart or diagnose sync in Settings.';
+ const open=document.createElement('button');open.type='button';open.textContent='[ OPEN CONTROL ]';
+ open.style.cssText='background:#10291c;color:#93f0b5;border:1px solid #37754e;margin-top:7px;padding:4px 6px;font:11px monospace;';
+ open.addEventListener('click',()=>{box.remove();flawlessPanel();});
+ const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='[ HIDE ]';
+ dismiss.style.cssText='background:transparent;color:#eac778;border:0;margin-left:5px;font:11px monospace;';
+ dismiss.addEventListener('click',()=>box.remove());
+ box.append(title,desc,open,dismiss);document.body.append(box);
+}
+
+let v8BackupVerified=false;
+async function restartFlawlessSync(){
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)){
+  cloudSync.mode='conflict-protected';
+  return {needsDecision:true,reason:'A conflict needs your decision. Save both copies first.'};
+ }
+ if(cloudSync.busy){
+  for(const task of activeCloudRequests)task.abort();
+  return {retrying:true,reason:'Current request stopping. Next cycle will verify the server before retrying.'};
+ }
+ return resumeCloudSyncSafely();
+}
+async function flawlessDiagnostics(){
+ const d={
+  mode:cloudSync.mode,online:navigator.onLine,enabled:cloudSync.enabled,
+  busy:cloudSync.busy,failures:cloudSync.failures,nextRetryAt:cloudSync.nextRetryAt?new Date(cloudSync.nextRetryAt).toISOString():null,
+  lastSuccess:cloudSync.lastSuccess,lastCheck:cloudSync.lastCheck,
+  lastError:cloudSync.lastError,
+  cloudRevision:localStorage.getItem(CLOUD_REVISION_KEY),
+  trustedBaseline:!!cloudBase(),conflict:cloudConflictStatus(),
+  pendingJournal:window.GHOSTED_SYNC_JOURNAL_STATUS?.()||null,
+  serverMode:CLOUD_V8_RECEIPTS?'v8-transactional-idempotent':'legacy-cas-migration-pending'
+ };
+ if(cloudSession&&navigator.onLine){
+  try{d.remote=(await cloudInspect()).revision;d.serverReachable=true;}
+  catch(error){d.serverReachable=false;d.serverError=String(error);}
+ }
+ return d;
+}
+async function resolveFlawlessConflict(choice){
+ if(!['device','cloud','combine'].includes(choice))throw Error('Unknown resolution choice');
+ if(!v8BackupVerified)throw Error('Export both copies and verify the recovery file first');
+ if(cloudSync.busy)throw Error('Current cloud request has not finished');
+ const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+ if(!raw)throw Error('No conflict is awaiting a decision');
+ const saved=JSON.parse(raw);
+ const local=validateCloudRecoveryProfile(saved.local);
+ const remote=validateCloudRecoveryProfile(saved.remote);
+ const localRaw=localStorage.getItem(CLOUD_STORAGE_KEY);
+ if(!localRaw||!cloudEqual(JSON.parse(localRaw),local))
+  throw Error('Local progress changed since conflict capture. Nothing overwritten; export the current profile too.');
+ const session=await requireCloudSession();
+ const latest=await cloudReadSnapshot();
+ const changed=Number(latest.revision)!==Number(saved.revision)||!cloudEqual(latest.payload,remote);
+ if(changed){
+  // Recover from a successful CAS that lost its response, without reuploading.
+  if(choice==='device'&&cloudEqual(latest.payload,local)){
+   cloudRemember(local,Number(latest.revision));
+   localStorage.removeItem(CLOUD_SYNC_CONFLICT);v8BackupVerified=false;
+   document.getElementById('ghosted-cloud-conflict')?.remove();
+   return {ok:true,note:'Previously committed device profile verified; sync state recovered'};
+  }
+  if(choice==='combine'){
+   const base=cloudBase();
+   if(base&&window.GHOSTED_RECONCILE_CLOUD_MERGE){
+    const candidate=cloudMerge(base,local,remote);
+    if(candidate.ok){
+     const reviewed=window.GHOSTED_RECONCILE_CLOUD_MERGE(candidate.profile,base,local,remote);
+     if(reviewed?.ok&&cloudEqual(latest.payload,reviewed.profile)){
+      if(!updateCloudView(latest.payload,localRaw))throw Error('Merged upload was committed; finish editing and retry local acknowledgment');
+      cloudRemember(latest.payload,Number(latest.revision));
+      localStorage.removeItem(CLOUD_SYNC_CONFLICT);v8BackupVerified=false;
+      document.getElementById('ghosted-cloud-conflict')?.remove();
+      return {ok:true,note:'Previously committed merge verified and applied without duplicating rewards'};
+     }
+    }
+   }
+  }
+  throw Error('Cloud advanced since the saved conflict. No data replaced. Export and review a fresh comparison.');
+ }
+ let target=local;
+ if(choice==='combine'){
+  const base=cloudBase();
+  if(!base)throw Error('No trustworthy common ancestor. Automatic merge is not safe.');
+  const candidate=cloudMerge(base,local,remote);
+  if(!candidate.ok)throw Error('Changes require a manual choice: '+candidate.conflicts.join(', '));
+  if(!window.GHOSTED_RECONCILE_CLOUD_MERGE)throw Error('Reward rules are not loaded');
+  const reviewed=window.GHOSTED_RECONCILE_CLOUD_MERGE(candidate.profile,base,local,remote);
+  if(!reviewed?.ok)throw Error('Reward accounting needs review: '+String(reviewed?.reason));
+  target=validateCloudRecoveryProfile(reviewed.profile);
+ }
+ if(!window.confirm(choice==='cloud'
+   ?'KEEP CLOUD: Replace the public profile on THIS DEVICE? A verified recovery export is required. Vault is untouched.'
+   :'KEEP '+(choice==='device'?'DEVICE':'SAFE MERGE')+': Replace the public CLOUD profile using an exact revision check? A verified recovery export is required.'))
+  return {cancelled:true,note:'Cancelled. Both copies remain unchanged'};
+ if(choice==='cloud'){
+  const recovery=JSON.stringify({format:'GHOSTED_V8_BEFORE_OPERATOR_CHOICE',createdAt:new Date().toISOString(),profile:local});
+  localStorage.setItem(CLOUD_SYNC_RECOVERY,recovery);
+  if(localStorage.getItem(CLOUD_SYNC_RECOVERY)!==recovery)throw Error('Local recovery backup could not be verified');
+  if(!window.GHOSTED_CAN_APPLY_CLOUD_PROFILE?.()||!updateCloudView(remote,localRaw))
+   throw Error('Finish current editing; cloud data was not applied');
+  cloudRemember(remote,Number(latest.revision));
+ }else{
+  const newRevision=Number(await cloudRequest('/rest/v1/rpc/ghosted_put_snapshot',{
+   method:'POST',token:session.accessToken,
+   body:{p_storage_key:CLOUD_STORAGE_KEY,p_payload:target,p_expected_revision:Number(latest.revision)}
+  }));
+  if(newRevision!==Number(latest.revision)+1)throw Error('Unexpected cloud revision');
+  // On a timeout the remote may already contain target. Reopen recovery to verify it.
+  if(choice==='combine'&&!updateCloudView(target,localRaw))
+   throw Error('Cloud accepted merged profile but local editor is busy. Close it and review recovery again.');
+  cloudRemember(target,newRevision);
+ }
+ localStorage.removeItem(CLOUD_SYNC_CONFLICT);v8BackupVerified=false;
+ document.getElementById('ghosted-cloud-conflict')?.remove();
+ cloudSync.mode='resolved';cloudSync.lastError=null;
+ cloudNotice('SYNC RECOVERED // NO REBOOT');
+ // Resume on next tick; never overlap the still-running operator action.
+ setTimeout(()=>{void resumeCloudSyncSafely().catch(error=>console.warn('[GHOSTED] Safe post-resolution resume:',error));},500);
+ return {ok:true,note:'Operator decision applied safely. Synchronization will resume.'};
+}
+function flawlessPanel(){
+ v8BackupVerified=false;
+ return openFlawlessPanel({
+  status:()=>({
+   mode:cloudSync.mode,online:navigator.onLine,
+   pending:window.GHOSTED_SYNC_JOURNAL_STATUS?.().pending??'UNKNOWN',
+   serverMode:CLOUD_V8_RECEIPTS?'TRANSACTIONAL V8':'LEGACY CAS',
+   revision:localStorage.getItem(CLOUD_REVISION_KEY),
+   lastSuccess:cloudSync.lastSuccess,lastError:cloudSync.lastError,
+   conflict:!!localStorage.getItem(CLOUD_SYNC_CONFLICT)
+  }),
+  restart:restartFlawlessSync,diagnostics:flawlessDiagnostics,
+  reconnect:async()=>{
+   const r=await cloudSignIn();
+   if(!r.ok)return {note:'Sign-in cancelled; local data preserved'};
+   if(localStorage.getItem(CLOUD_SYNC_CONFLICT))return {note:'Signed in. Conflict still requires operator review'};
+   const resumed=await restartFlawlessSync();
+   return {note:resumed?.reason||'Account reconnected and sync restarted'};
+  },
+  exportProfile:()=>{cloudDownloadLocalBackup(localStorage.getItem(CLOUD_STORAGE_KEY));return {note:'Verify public backup in Downloads'};},
+  exportJournal:()=>{
+   const raw=publicJournal.export();
+   const blob=new Blob([raw],{type:'application/json'}),url=URL.createObjectURL(blob);
+   const link=document.createElement('a');
+   link.href=url;link.download='GHOSTED_PUBLIC_JOURNAL_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+   document.body.append(link);
+   try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+   return {note:'Verify public journal export in Downloads'};
+  },
+  exportConflict:()=>exportCloudConflict(),
+  setBackupVerified:checked=>{v8BackupVerified=!!checked;},
+  resolve:resolveFlawlessConflict
+ });
 }
 
 function stopCloudSync(reason = 'disabled') {
@@ -454,6 +794,7 @@ function stopCloudSync(reason = 'disabled') {
 
 async function syncCycle(){
  if(!cloudSync.enabled||cloudSync.busy||!navigator.onLine)return {skipped:true};
+ if(cloudSync.nextRetryAt>Date.now())return {retrying:true,nextRetryAt:new Date(cloudSync.nextRetryAt).toISOString()};
  cloudSync.busy=true;
  try{
   const session=await requireCloudSession();
@@ -469,6 +810,30 @@ async function syncCycle(){
   const localDirty=!cloudEqual(local,JSON.parse(hash));
   const remoteDirty=revision!==ack;
   const base=cloudBase();
+  // An upload may have committed before Android received its acknowledgment.
+  // Accept a matching durable intent only if no later local edit happened.
+  if(CLOUD_V8_RECEIPTS&&remoteDirty&&localDirty){
+   const intent=JSON.parse(localStorage.getItem(CLOUD_V8_INTENT)||'null');
+   if(intent?.storageKey===CLOUD_STORAGE_KEY&&intent.hash===stableProfile(remote.payload)){
+    if(intent.localHash!==stableProfile(local)){
+     // The server contains exactly the snapshot this device previously sent.
+     // Local edits made after that upload remain authoritative here. Advance
+     // the trusted baseline to the verified server snapshot WITHOUT replacing
+     // the current local state; a subsequent cycle uploads the newer edits.
+     cloudRemember(remote.payload,revision);
+     cloudSync.mode='upload-ack-recovered-newer-local';
+     cloudNotice('CLOUD // UPLOAD VERIFIED; LOCAL CHANGES QUEUED');
+     return {retry:true,reason:'verified-previous-upload-newer-local-preserved'};
+    }
+    const backup=JSON.stringify({format:'GHOSTED_V8_LOST_ACK_RECOVERY',createdAt:new Date().toISOString(),profile:local,revision:ack});
+    localStorage.setItem(CLOUD_SYNC_RECOVERY,backup);
+    if(localStorage.getItem(CLOUD_SYNC_RECOVERY)!==backup)throw Error('Lost-ack recovery backup not verified');
+    if(!updateCloudView(remote.payload,original))return {deferred:true,reason:'editor-busy-after-accepted-upload'};
+    cloudRemember(remote.payload,revision);
+    cloudSync.mode='acknowledgment-recovered';cloudNotice('CLOUD // UPLOAD VERIFIED');
+    return {recoveredAcknowledgment:true,revision};
+   }
+  }
   if(!remoteDirty&&!cloudEqual(remote.payload,JSON.parse(hash)))throw Error('Cloud baseline mismatch');
   let next=null,merge=false;
   if(localDirty&&remoteDirty){
@@ -476,6 +841,15 @@ async function syncCycle(){
    const merged=cloudMerge(base,local,remote.payload);
    if(!merged.ok){saveCloudConflict(local,remote.payload,revision,merged.conflicts);return {conflict:true,details:merged.conflicts};}
    next=merged.profile;merge=true;
+   // Validate the entire merged reward timeline, including cross-day quotas.
+   // The habit engine decides eligibility; the cloud layer never guesses.
+   if(!window.GHOSTED_RECONCILE_CLOUD_MERGE)return {deferred:true,reason:'habit-engine-loading'};
+   const reviewed=window.GHOSTED_RECONCILE_CLOUD_MERGE(next,base,local,remote.payload);
+   if(!reviewed?.ok){
+    saveCloudConflict(local,remote.payload,revision,['Reward review: '+String(reviewed?.reason||'not verified')]);
+    return {conflict:true};
+   }
+   next=validateCloudRecoveryProfile(reviewed.profile);
   }else if(remoteDirty){next=remote.payload;}
   if(next){
    if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return {retry:true};
@@ -487,7 +861,7 @@ async function syncCycle(){
     // A previous CAS may already have committed this exact merged result.
     if(!updateCloudView(next,original))return {deferred:true,reason:'editor-busy'};
     cloudRemember(next,revision);
-    cloudSync.mode='merged';cloudSync.lastError=null;cloudNotice('CLOUD // MERGED');
+    cloudSync.mode='merged';cloudSync.lastError=null;document.getElementById('ghosted-cloud-conflict')?.remove();cloudNotice('CLOUD // MERGED');
     return {downloadedRevision:revision};
    }
    if(merge){
@@ -506,12 +880,12 @@ async function syncCycle(){
     if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return {retry:true,reason:'local-edited-during-merge'};
     if(!updateCloudView(next,original))return {deferred:true,reason:'editor-busy-after-merge'};
     cloudRemember(next,newRev);
-    cloudSync.mode='merged';cloudSync.lastError=null;cloudNotice('CLOUD // MERGED');
+    cloudSync.mode='merged';cloudSync.lastError=null;document.getElementById('ghosted-cloud-conflict')?.remove();cloudNotice('CLOUD // MERGED');
     return {mergedRevision:newRev};
    }
    if(!updateCloudView(next,original))return {deferred:true};
    cloudRemember(next,revision);
-   cloudSync.mode='downloaded';cloudSync.lastError=null;cloudNotice('CLOUD // UPDATED');
+   cloudSync.mode='downloaded';cloudSync.lastError=null;document.getElementById('ghosted-cloud-conflict')?.remove();cloudNotice('CLOUD // UPDATED');
    return {downloadedRevision:revision};
   }
   if(localDirty){
@@ -522,25 +896,31 @@ async function syncCycle(){
    }));
    if(newRev!==ack+1)throw Error('Unexpected upload revision');
    cloudRemember(local,newRev);
-   cloudSync.mode='uploaded';cloudSync.lastError=null;return {uploadedRevision:newRev};
+   cloudSync.mode='uploaded';cloudSync.lastError=null;document.getElementById('ghosted-cloud-conflict')?.remove();cloudNotice('CLOUD // UPLOADED');return {uploadedRevision:newRev};
   }
   if(!base)cloudRemember(remote.payload,revision);
   cloudSync.mode='in-sync';cloudSync.lastError=null;return {inSync:true,revision};
  }catch(error){
   const reason=String(error);cloudSync.lastError=reason;
-  if(!navigator.onLine||error instanceof TypeError||/failed to fetch|networkerror|fetch failed|timeout|HTTP 429|HTTP 5\d\d/i.test(reason)){
-   cloudSync.mode='waiting-for-connection';return {retrying:true,reason};
+  if(!navigator.onLine||error instanceof TypeError||/AbortError|aborted|failed to fetch|networkerror|fetch failed|timeout|HTTP 429|HTTP 5\d\d/i.test(reason)){
+   cloudSync.mode='waiting-for-connection';cloudSync.failures=Math.min(50,cloudSync.failures+1);
+   cloudSync.nextRetryAt=Date.now()+Math.min(120000,3000*2**Math.min(5,cloudSync.failures));
+   return {retrying:true,reason,nextRetryAt:new Date(cloudSync.nextRetryAt).toISOString()};
   }
-  if(/GHOSTED_REVISION_CONFLICT|revision conflict/i.test(reason)){
-   cloudSync.mode='cloud-race-retry';return {retrying:true,reason};
+  if(/GHOSTED_REVISION_CONFLICT|revision conflict|stale revision|expected revision|HTTP 409|HTTP 412|23505|40001/i.test(reason)){
+   cloudSync.mode='cloud-race-retry';cloudSync.nextRetryAt=Date.now()+2500;return {retrying:true,reason};
   }
-  stopCloudSync('halted');cloudSync.lastError=reason;
+  cloudSync.mode='needs-attention';cloudSync.enabled=false;
+  if(cloudSyncTimer)clearInterval(cloudSyncTimer);cloudSyncTimer=null;
+  cloudSync.lastError=reason;cloudNotice('SYNC NEEDS ATTENTION // OPEN SETTINGS');
+  cloudNeedsAttentionBanner();
   console.error('[GHOSTED cloud sync] Paused safely:',error);
-  return {halted:true,reason};
+  return {needsAttention:true,reason};
  }finally{cloudSync.busy=false;cloudSync.lastCheck=new Date().toISOString();}
 }
 
 async function enableCloudSync() {
+  if (localStorage.getItem(CLOUD_SYNC_CONFLICT))throw Error('Resolve or export the existing protected conflict first. Use Settings → Sync Control Center');
   if (!cloudState.configured) throw new Error('Supabase not configured in this build');
   const session = await requireCloudSession();
   if (session.userId !== CLOUD_OWNER_ID) throw new Error('Unexpected operator account');
@@ -588,6 +968,16 @@ function resumeCloudSession() {
 // Import cloud data BEFORE the legacy habit scripts initialize their own state.
 // Never overwrite existing local changes when provenance is uncertain.
 async function bootstrapCloudProfile() {
+  // Do not run any startup restore when an unresolved two-device conflict is
+  // preserved. The operator decision in Settings is the ONLY recovery path.
+  if (localStorage.getItem(CLOUD_SYNC_CONFLICT)) {
+    cloudSync.enabled=false;
+    cloudSync.mode='conflict-protected';
+    if(document.readyState==='loading')
+      document.addEventListener('DOMContentLoaded',cloudConflictBanner,{once:true});
+    else cloudConflictBanner();
+    return;
+  }
   if (!cloudState.configured || !navigator.onLine) return;
   const localRaw = localStorage.getItem(CLOUD_STORAGE_KEY);
   if (!cloudSession) {
@@ -660,6 +1050,12 @@ async function bootstrapCloudProfile() {
         }
       }
     }
+    if (localStorage.getItem(CLOUD_SYNC_CONFLICT)) {
+      cloudSync.mode='conflict-protected';cloudSync.enabled=false;
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',cloudConflictBanner,{once:true});
+      else cloudConflictBanner();
+      return;
+    }
     if (localStorage.getItem(CLOUD_SYNC_HASH) && cloudSync.mode !== 'needs-manual-reconciliation') {
       if (stableProfile(remote.payload) === localStorage.getItem(CLOUD_SYNC_HASH)) {
         const saved = cloudBase();
@@ -680,8 +1076,11 @@ async function bootstrapCloudProfile() {
 }
 
 window.addEventListener('online', () => {
+  cloudSync.nextRetryAt=0;
   if (cloudSync.enabled) void syncCycle();
 });
+
+window.addEventListener('offline',()=>{if(cloudSync.enabled)cloudSync.mode='offline-queued';});
 
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && cloudSync.enabled) void syncCycle();
@@ -702,7 +1101,16 @@ window.GHOSTED_CLOUD = Object.freeze({
   enableSync: enableCloudSync,
   disableSync: stopCloudSync,
   syncNow: syncCycle,
-  syncStatus: () => ({ ...cloudSync }),
+  syncStatus: () => ({ ...cloudSync, conflict: cloudConflictStatus() }),
+  conflictStatus: cloudConflictStatus,
+  exportConflict: exportCloudConflict,
+  resumeSync: resumeCloudSyncSafely,
+  restartEngine: restartFlawlessSync,
+  openControlCenter: flawlessPanel,
+  journalStatus: () => publicJournal.status(),
+  serverMode: () => CLOUD_V8_RECEIPTS?'v8-transactional-idempotent':'legacy-cas-migration-pending',
+  diagnostics: flawlessDiagnostics,
+  resolveConflict: resolveFlawlessConflict,
   previewRestore: cloudPreviewRestore,
   restore: cloudRestore,
   status: () => ({ ...cloudState, sessionActive: !!cloudSession && cloudSession.expiresAt > Date.now() + 30000, automaticSync: cloudSync.enabled }),
@@ -715,7 +1123,10 @@ window.GHOSTED_CLOUD = Object.freeze({
     // No reload is needed if this is the pre-script startup sign-in.
     if (before !== localStorage.getItem(CLOUD_STORAGE_KEY)) {
       await ghostedStartup;
-      window.location.reload();
+      const profile=JSON.parse(localStorage.getItem(CLOUD_STORAGE_KEY));
+      if(window.GHOSTED_APPLY_CLOUD_PROFILE && window.GHOSTED_CAN_APPLY_CLOUD_PROFILE?.())
+        window.GHOSTED_APPLY_CLOUD_PROFILE(JSON.stringify(profile));
+      else cloudNotice('PROFILE UPDATED // OPEN SYNC CONTROL');
     }
     return { ...result, sync: cloudSync.mode };
   },

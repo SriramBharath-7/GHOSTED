@@ -213,7 +213,18 @@ function refreshCustomRegistry(){PROTOCOLS=[...BUILTIN_PROTOCOLS.map(x=>({...x})
 refreshCustomRegistry();
 function save(){
  if(storageCorrupt){persisted=false;return false;}
- try{localStorage.setItem(STORAGE,JSON.stringify(state));window.GHOSTED_NATIVE_DB?.mirror(STORAGE,localStorage.getItem(STORAGE));persisted=true;return true}catch{persisted=false;return false;}
+ try{
+  const oldRaw=localStorage.getItem(STORAGE),newRaw=JSON.stringify(state);
+  const operation=window.GHOSTED_SYNC_PREPARE_PUBLIC_WRITE?.(oldRaw,newRaw);
+  localStorage.setItem(STORAGE,newRaw);
+  // Local profile is the immediate authority; an interrupted journal commit is
+  // repaired by comparing the saved profile on the next launch.
+  try{window.GHOSTED_SYNC_COMMIT_PUBLIC_WRITE?.(operation);}catch(error){console.warn('[GHOSTED] Operation journal commit pending repair',error);}
+  window.GHOSTED_NATIVE_DB?.mirror(STORAGE,newRaw);
+  persisted=true;
+  if(operation)window.GHOSTED_SYNC_NOTIFY_PUBLIC_WRITE?.();
+  return true;
+ }catch(error){persisted=false;console.warn('[GHOSTED] Public profile write blocked; previous copy preserved',error);return false;}
 }
 function atomicChange(fn){
  const old=structuredClone(state);const before=service();
@@ -306,7 +317,7 @@ function bootLines(){return `<div class="term-line"><span class="good">[OK]</spa
 <div class="term-line"><span class="good">[OK]</span> <span class="info">DOT-MATRIX OPERATOR SET LOADED (8 VARIANTS)</span></div>
 <div class="term-line"><span class="good">[OK]</span> <span class="info">100 ORIGINAL RANK BADGES + GHOST SOVEREIGN</span></div>
 <div class="term-line"><span class="${persisted?'good':'warn'}">[${persisted?'OK':'--'}]</span> <span class="info">BROWSER STORAGE ${persisted?'AVAILABLE':'UNAVAILABLE'}</span></div>
-<div class="term-line"><span class="warn">[INFO]</span> <span class="info">STANDALONE WEB PROFILE / NO ANDROID SYNC</span></div>
+<div class="term-line"><span class="warn">[INFO]</span> <span class="info">PUBLIC PROFILE / GUARDED CLOUD SYNC WHEN LINKED</span></div>
 <div class="term-line"><span class="good">[OK]</span> <span class="good bold">GHOSTED SESSION READY</span></div>`;}
 function home(){const s=service();const progress=(s.xp-s.prevLevelXp)/(s.nextLevelXp-s.prevLevelXp);return `
 <div class="v68-mobile-hide-boot">${sectionHead('SYSTEM / INITIALIZATION','REAL HISTORY // OFFLINE PERSONAL MODE')}${bootLines()}</div>
@@ -1395,6 +1406,9 @@ function settingsPage(){return `${sectionHead('SETTINGS / LOCAL OPERATOR','WEB A
  ${metric('SCANLINES',state.settings.scanlines?'ON':'OFF')}
  ${metric('BACKUP','VERSION 4 — PUBLIC DATA ONLY')}
  ${reminderSettingsHTML()}
+ ${sectionHead('CLOUD & SYNC','OPERATION FLAWLESS // RECOVERY CONTROL')}
+ <div class="muted">Review pending changes, restart synchronization without rebooting GHOSTED, and recover conflicting copies safely.</div>
+ ${action('[ OPEN SYNC CONTROL CENTER ]','synccenter')}
  ${sectionHead('DATABASE DIAGNOSTICS','NATIVE SQLITE CHECK')}
  <div class="muted">Android SQLite status and safe readback test. WebView storage may persist even when native SQLite is unavailable.</div>
  <div class="footer-actions">${action('[ CHECK DATABASE STATUS ]','dbstatus')}${action('[ TEST SQLITE WRITE / READ ]','dbtest')}</div>
@@ -1418,7 +1432,7 @@ function settingsPage(){return `${sectionHead('SETTINGS / LOCAL OPERATOR','WEB A
  <div class="footer-actions">${action('[ TOGGLE SCANLINES ]','scanlines')}${action('[ TOGGLE SOUNDS ]','sounds')}${action('[ TEST SOUND ]','beep')}</div>
  ${sectionHead('PROFILE','DESTRUCTIVE OPERATIONS REQUIRE CONFIRMATION')}
  <div class="footer-actions">${action('[ RESET PUBLIC PROFILE ]','reset')}${action('[ SYSTEM ]','system')}</div>
- <div class="notice">Android reminders will use device notifications once the native application adapter is installed. In the standalone HTML build, reminders are visible only while open; Android and website data do not automatically synchronize.</div>`;}
+ <div class="notice">Android reminders depend on device permissions. Public profile cloud sync operates when configured, signed in and connected; queued offline changes retry. Private Vault stays local.</div>`;}
 
 function conceptsPage(){return `
 ${sectionHead('REFERENCE ARCHIVE / ORIGINAL CONCEPTS','10 APPROVED VISUAL SCREENS')}
@@ -1640,6 +1654,7 @@ function run(value,opts={}){let raw=String(value||'').trim();if(!raw)return;
  case '0':case 'system':case 'home':case 'back':case 'exit':section='system';break;
  case 'help':case '?':section='help';break;
  case 'status':section='status';break;
+ case 'synccenter':section='settings';setTimeout(()=>window.GHOSTED_CLOUD?.openControlCenter?.(),0);break;
  case 'dbstatus':{
   section='settings';
   const d=window.GHOSTED_NATIVE_DB?.status?.()||{platform:'browser',state:'bridge-unavailable',writes:0,lastError:null};
@@ -2060,13 +2075,67 @@ function ghostedCanApplyCloud() {
  if(command&&command.value.trim())return false;
  return true;
 }
+// V8: award Perfect Day exactly once after joining independently completed habits.
+// The app's saved schedules, including historical quota windows, are the authority.
+window.GHOSTED_RECONCILE_CLOUD_MERGE=(incoming,baseline,local,remote)=>{
+ const prepared=structuredClone(incoming),previous=state,checks=[];
+ try{
+  if(!validState(prepared))return {ok:false,reason:'Invalid merged profile'};
+  const allDays=new Set([
+   ...Object.keys(local.days||{}),...Object.keys(remote.days||{}),
+   ...Object.keys(local.rewardLedger||{}),...Object.keys(remote.rewardLedger||{})
+  ]);
+  state=prepared;
+  for(const date of allDays){
+   const leftChanged=JSON.stringify(local.days?.[date])!==JSON.stringify(baseline.days?.[date])||
+      JSON.stringify(local.rewardLedger?.[date])!==JSON.stringify(baseline.rewardLedger?.[date]);
+   const rightChanged=JSON.stringify(remote.days?.[date])!==JSON.stringify(baseline.days?.[date])||
+      JSON.stringify(remote.rewardLedger?.[date])!==JSON.stringify(baseline.rewardLedger?.[date]);
+   if(!leftChanged&&!rightChanged)continue;
+   if(!validDate(date)||date>dateAgo(0))return {ok:false,reason:'Future reward date needs manual review'};
+   const row=prepared.rewardLedger?.[date];
+   if(!row||!Number.isSafeInteger(row.xp)||!Number.isSafeInteger(row.coins))
+     return {ok:false,reason:'Missing verified reward row for '+date};
+   // Different offline dates may share a weekly/monthly/rolling quota. Reevaluate
+   // every NEWLY credited award under the combined timeline before accepting it.
+   for(const [key,award] of Object.entries(row.awards||{})){
+    const existing=baseline.rewardLedger?.[date]?.awards?.[key];
+    if(JSON.stringify(award)===JSON.stringify(existing))continue;
+    if(!award||!Number.isSafeInteger(award.xp)||!Number.isSafeInteger(award.coins))
+     return {ok:false,reason:'Invalid modified award for '+date};
+    if((award.xp>0||award.coins>0)&&!eligible(Number(key),date))
+     return {ok:false,reason:'Merged history exceeds due/period quota for protocol '+key+' on '+date};
+   }
+   const combined=leftChanged&&rightChanged
+      &&JSON.stringify(prepared.days?.[date])!==JSON.stringify(local.days?.[date])
+      &&JSON.stringify(prepared.days?.[date])!==JSON.stringify(remote.days?.[date]);
+   const scope=perfectScope(date),perfect=full(date);
+   if(row.bonus&&!perfect)return {ok:false,reason:'Perfect Day scope changed on '+date};
+   if(combined&&perfect&&!row.bonus){
+    if(baseline.rewardLedger?.[date]?.bonus||local.rewardLedger?.[date]?.bonus||remote.rewardLedger?.[date]?.bonus)
+     return {ok:false,reason:'Ambiguous previous Perfect Day reward on '+date};
+    if(!Number.isSafeInteger(row.xp+50)||!Number.isSafeInteger(row.coins+20))
+     return {ok:false,reason:'Perfect Day reward overflow on '+date};
+    row.bonusScope=[...scope].sort((a,b)=>a-b);
+    row.bonus=true;row.xp+=50;row.coins+=20;
+    checks.push({date,addedXp:50,addedCoins:20});
+   }
+  }
+  return {ok:true,profile:prepared,adjustments:checks};
+ }catch(error){return {ok:false,reason:String(error)};}
+ finally{state=previous;}
+};
 window.GHOSTED_CAN_APPLY_CLOUD_PROFILE=ghostedCanApplyCloud;
 window.GHOSTED_APPLY_CLOUD_PROFILE=(raw)=>{
  if(!ghostedCanApplyCloud())return false;
  const profile=JSON.parse(raw);
  if(!validState(profile)||profile.schemaVersion!==4||profile.isSample===true)throw Error('Invalid cloud profile; local state preserved');
  const scroll=viewport.scrollTop;
- if(!saveRestored(profile))throw Error('Cloud profile could not be saved; local state preserved');
+ let accepted=false;
+ window.GHOSTED_SYNC_APPLYING=true;
+ try{accepted=saveRestored(profile);}
+ finally{window.GHOSTED_SYNC_APPLYING=false;}
+ if(!accepted)throw Error('Cloud profile could not be saved; local state preserved');
  render();
  viewport.scrollTop=scroll;
  return true;
