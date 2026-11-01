@@ -420,7 +420,7 @@ const CLOUD_SYNC_SESSION = 'ghosted:cloud:session:v76';
 const CLOUD_SYNC_ARMED = 'ghosted:cloud:armed:v76';
 const CLOUD_SYNC_BASELINE = 'ghosted:cloud:baseline:v79';
 const CLOUD_SYNC_CONFLICT = 'ghosted:cloud:conflict:v79';
-const cloudSync = { enabled: false, busy: false, mode: 'off', lastCheck: null, lastError: null, failures: 0, lastSuccess: null };
+const cloudSync = { enabled: false, busy: false, mode: 'off', lastCheck: null, lastError: null, failures: 0, lastSuccess: null, nextRetryAt: 0 };
 let cloudSyncTimer = null;
 
 function stableProfile(value) {
@@ -450,7 +450,7 @@ function cloudRemember(profile,revision){
  if(localStorage.getItem(CLOUD_SYNC_BASELINE)!==raw)throw Error('Baseline was not saved');
  localStorage.setItem(CLOUD_REVISION_KEY,String(revision));
  localStorage.setItem(CLOUD_SYNC_HASH,stableProfile(profile));
- cloudSync.lastSuccess=new Date().toISOString();cloudSync.failures=0;
+ cloudSync.lastSuccess=new Date().toISOString();cloudSync.failures=0;cloudSync.nextRetryAt=0;
  window.GHOSTED_SYNC_ACK_LOCAL?.(profile);
  v8AcknowledgeIntent(profile,revision);
 }
@@ -607,7 +607,7 @@ async function resumeCloudSyncSafely(){
  if(cloudSync.busy)return {busy:true};
  if(!cloudState.configured)throw Error('Cloud not configured');
  await requireCloudSession();
- cloudSync.enabled=true;cloudSync.mode='checking-conflict';cloudSync.lastError=null;
+ cloudSync.enabled=true;cloudSync.mode='checking-conflict';cloudSync.lastError=null;cloudSync.nextRetryAt=0;
  if(cloudSyncTimer)clearInterval(cloudSyncTimer);
  cloudSyncTimer=setInterval(()=>{void syncCycle();},15000);
  localStorage.setItem(CLOUD_SYNC_ARMED,'1');
@@ -630,7 +630,7 @@ async function restartFlawlessSync(){
 async function flawlessDiagnostics(){
  const d={
   mode:cloudSync.mode,online:navigator.onLine,enabled:cloudSync.enabled,
-  busy:cloudSync.busy,failures:cloudSync.failures,
+  busy:cloudSync.busy,failures:cloudSync.failures,nextRetryAt:cloudSync.nextRetryAt?new Date(cloudSync.nextRetryAt).toISOString():null,
   lastSuccess:cloudSync.lastSuccess,lastCheck:cloudSync.lastCheck,
   lastError:cloudSync.lastError,
   cloudRevision:localStorage.getItem(CLOUD_REVISION_KEY),
@@ -737,6 +737,7 @@ function stopCloudSync(reason = 'disabled') {
 
 async function syncCycle(){
  if(!cloudSync.enabled||cloudSync.busy||!navigator.onLine)return {skipped:true};
+ if(cloudSync.nextRetryAt>Date.now())return {retrying:true,nextRetryAt:new Date(cloudSync.nextRetryAt).toISOString()};
  cloudSync.busy=true;
  try{
   const session=await requireCloudSession();
@@ -821,10 +822,12 @@ async function syncCycle(){
  }catch(error){
   const reason=String(error);cloudSync.lastError=reason;
   if(!navigator.onLine||error instanceof TypeError||/AbortError|aborted|failed to fetch|networkerror|fetch failed|timeout|HTTP 429|HTTP 5\d\d/i.test(reason)){
-   cloudSync.mode='waiting-for-connection';cloudSync.failures=Math.min(50,cloudSync.failures+1);return {retrying:true,reason};
+   cloudSync.mode='waiting-for-connection';cloudSync.failures=Math.min(50,cloudSync.failures+1);
+   cloudSync.nextRetryAt=Date.now()+Math.min(120000,3000*2**Math.min(5,cloudSync.failures));
+   return {retrying:true,reason,nextRetryAt:new Date(cloudSync.nextRetryAt).toISOString()};
   }
   if(/GHOSTED_REVISION_CONFLICT|revision conflict/i.test(reason)){
-   cloudSync.mode='cloud-race-retry';return {retrying:true,reason};
+   cloudSync.mode='cloud-race-retry';cloudSync.nextRetryAt=Date.now()+2500;return {retrying:true,reason};
   }
   cloudSync.mode='needs-attention';cloudSync.enabled=false;
   if(cloudSyncTimer)clearInterval(cloudSyncTimer);cloudSyncTimer=null;
@@ -980,8 +983,11 @@ async function bootstrapCloudProfile() {
 }
 
 window.addEventListener('online', () => {
+  cloudSync.nextRetryAt=0;
   if (cloudSync.enabled) void syncCycle();
 });
+
+window.addEventListener('offline',()=>{if(cloudSync.enabled)cloudSync.mode='offline-queued';});
 
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && cloudSync.enabled) void syncCycle();
