@@ -528,7 +528,9 @@ function cloudMerge(base,local,remote){
  const any=(p,keys)=>keys.some(k=>changed(p,k));
  if((any(local,rewards)&&any(remote,policy))||(any(remote,rewards)&&any(local,policy)))conflicts.push('rewards-vs-protocol-policy');
  if((any(local,rewards)&&any(remote,spending))||(any(remote,rewards)&&any(local,spending)))conflicts.push('rewards-vs-spending');
- if(any(local,spending)&&any(remote,spending)&&!cloudEqual(local.purchaseRecords,remote.purchaseRecords))conflicts.push('concurrent-spending');
+ // Purchases are non-idempotent without shared operation IDs. Even identical
+ // looking purchase records may represent two real transactions.
+ if(any(local,spending)&&any(remote,spending))conflicts.push('concurrent-spending-needs-operator');
  if(changed(local,'historicalCareerSeed')||changed(remote,'historicalCareerSeed'))conflicts.push('historical-career-seed');
  try{validateCloudRecoveryProfile(result);}catch{conflicts.push('invalid-merged-profile');}
  return {ok:conflicts.length===0,profile:result,conflicts:[...new Set(conflicts)]};
