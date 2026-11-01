@@ -493,9 +493,12 @@ async function syncCycle(){
      body:{p_storage_key:CLOUD_STORAGE_KEY,p_payload:next,p_expected_revision:revision}
     }));
     if(newRev!==revision+1)throw Error('Unexpected merged revision');
+    // Never acknowledge until the live profile actually accepts the merged state.
+    // If a local edit races with the upload, the old baseline remains available
+    // and the next cycle merges that edit against the new cloud revision.
+    if(localStorage.getItem(CLOUD_STORAGE_KEY)!==original)return {retry:true,reason:'local-edited-during-merge'};
+    if(!updateCloudView(next,original))return {deferred:true,reason:'editor-busy-after-merge'};
     cloudRemember(next,newRev);
-    // If the user edited during upload, defer applying; keep the new local change.
-    if(localStorage.getItem(CLOUD_STORAGE_KEY)===original)updateCloudView(next,original);
     cloudSync.mode='merged';cloudSync.lastError=null;cloudNotice('CLOUD // MERGED');
     return {mergedRevision:newRev};
    }
