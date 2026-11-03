@@ -196,3 +196,15 @@ test('lost acknowledgement plus newer local edit advances baseline without disca
  assert.equal(next.uploadedRevision,9);
  assert.equal(shared.payload.settings.scanlines,false);
 });
+
+test('a saved conflict blocks all polling and cannot overwrite either device even if sync was re-enabled',async()=>{
+ const shared={revision:8,payload:baseline(),writes:0};
+ const phone=createDevice({shared});
+ phone.edit(p=>p.settings.sounds=true);
+ phone.store.set('conflict',JSON.stringify({local:phone.profile,remote:baseline(),revision:8,details:['settings']}));
+ phone.cloudSync.enabled=true;
+ const result=await phone.api.syncCycle();
+ assert.equal(result.conflict,true);assert.equal(result.needsDecision,true);
+ assert.equal(phone.cloudSync.enabled,false);assert.equal(shared.writes,0);
+ assert.equal(phone.profile.settings.sounds,true);
+});

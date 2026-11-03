@@ -293,6 +293,7 @@ async function cloudUpload() {
   const session = await requireCloudSession();
   const profile = cloudLocalProfile();
   const remote = await cloudInspect();
+  if(localStorage.getItem(CLOUD_SYNC_CONFLICT))throw Error('Protected sync conflict; use Settings → Sync Control Center before any upload');
   const acknowledged = window.localStorage.getItem(CLOUD_REVISION_KEY);
   if (remote.remoteExists && (!acknowledged || Number(acknowledged) !== remote.revision)) {
     throw new Error('Cloud already has another or newer snapshot. Upload blocked to prevent overwriting it');
@@ -385,6 +386,7 @@ function cloudDownloadLocalBackup(raw) {
 }
 
 async function cloudRestore() {
+  if(localStorage.getItem(CLOUD_SYNC_CONFLICT))throw Error('Resolve the protected conflict through Sync Control Center first; manual restore could discard Android-only progress');
   const preview = await cloudPreviewRestore();
   const originalRaw = window.localStorage.getItem(CLOUD_STORAGE_KEY);
   if (!window.confirm(`GHOSTED CLOUD RECOVERY\nRemote revision: ${preview.remoteRevision}\nRemote saved days: ${preview.remoteSavedDays}\nLocal saved days: ${preview.localSavedDays}\nThis replaces ONLY the local public profile. Vault stays local. Continue to backup step?`)) {
@@ -498,8 +500,18 @@ function cloudMerge(base,local,remote){
   if(!cloudEqual(local.mildDays?.[day],base.mildDays?.[day])||!cloudEqual(remote.mildDays?.[day],base.mildDays?.[day]))continue;
   const br=base.rewardLedger?.[day]||{xp:0,coins:0,bonus:false,awards:{}};
   const lr=local.rewardLedger?.[day],rr=remote.rewardLedger?.[day];
-  if(!lr||!rr||br.bonus||lr.bonus||rr.bonus)continue;
-  const extras=({xp,coins,awards,...other})=>other;
+  if(!lr||!rr)continue;
+  // A frozen Perfect Day can be carried across independent completions,
+  // provided both sides agree on its exact credited scope. Never double-pay.
+  if(br.bonus&&(!lr.bonus||!rr.bonus))continue; // Undo/bonus reversal needs review.
+  const bonusScope=row=>Array.isArray(row.bonusScope)&&row.bonusScope.length
+   ?[...row.bonusScope].sort((a,b)=>a-b):null;
+  const paidScopes=[br,lr,rr].filter(row=>row.bonus).map(bonusScope);
+  if(paidScopes.some(scope=>scope===null))continue;
+  if(paidScopes.some(scope=>!cloudEqual(scope,paidScopes[0])))continue;
+  const bonus=!!(br.bonus||lr.bonus||rr.bonus);
+  const chosenScope=paidScopes[0]||null;
+  const extras=({xp,coins,awards,bonus,bonusScope,...other})=>other;
   if(!cloudEqual(extras(br),extras(lr))||!cloudEqual(extras(br),extras(rr)))continue;
   const additions=(row,ids)=>{
    if(!row.awards||!cloudPlain(row.awards)||!Number.isSafeInteger(row.xp)||!Number.isSafeInteger(row.coins))return null;
@@ -510,17 +522,22 @@ function cloudMerge(base,local,remote){
     if(!ids.some(id=>String(id)===key)||!value||!Number.isSafeInteger(value.xp)||value.xp<0||!Number.isSafeInteger(value.coins)||value.coins<0)return null;
     added[key]=value;xp+=value.xp;coins+=value.coins;
    }
-   if(!Number.isSafeInteger(xp)||!Number.isSafeInteger(coins)||row.xp-br.xp!==xp||row.coins-br.coins!==coins)return null;
+   const freshBonus=!!row.bonus&&!br.bonus;
+   if(!Number.isSafeInteger(xp)||!Number.isSafeInteger(coins)||
+     row.xp-br.xp!==xp+(freshBonus?50:0)||
+     row.coins-br.coins!==coins+(freshBonus?20:0))return null;
    return {added,xp,coins};
   };
   const la=additions(lr,left),ra=additions(rr,right);
   if(!la||!ra)continue;
-  const xp=br.xp+la.xp+ra.xp,coins=br.coins+la.coins+ra.coins;
+  const xp=br.xp+la.xp+ra.xp+(bonus&&!br.bonus?50:0);
+  const coins=br.coins+la.coins+ra.coins+(bonus&&!br.bonus?20:0);
   if(!Number.isSafeInteger(xp)||!Number.isSafeInteger(coins))continue;
   result.days=result.days||{};
   result.days[day]=[...new Set([...bday,...left,...right])].sort((a,b)=>a-b);
   result.rewardLedger=result.rewardLedger||{};
-  result.rewardLedger[day]={...br,xp,coins,awards:{...(br.awards||{}),...la.added,...ra.added}};
+  result.rewardLedger[day]={...br,xp,coins,bonus,awards:{...(br.awards||{}),...la.added,...ra.added}};
+  if(chosenScope)result.rewardLedger[day].bonusScope=chosenScope;
   for(let j=conflicts.length-1;j>=0;j--){
    if(conflicts[j]==='days.'+day||conflicts[j].startsWith('rewardLedger.'+day+'.')||conflicts[j]==='rewardLedger.'+day||conflicts[j]==='daily-record:'+day)conflicts.splice(j,1);
   }
@@ -592,24 +609,29 @@ function exportCloudConflict(){
 }
 function cloudConflictBanner(){
  if(!document.body||document.getElementById('ghosted-cloud-conflict'))return;
- const box=document.createElement('div');
- box.id='ghosted-cloud-conflict';box.setAttribute('role','status');
- box.style.cssText='position:fixed;z-index:10095;top:8px;right:8px;max-width:min(285px,calc(100vw - 16px));background:#07150f;color:#e8bd6e;border:1px solid #a77a35;border-radius:6px;padding:8px 10px;font:11px/1.4 monospace;box-shadow:0 3px 16px #000b;';
- const title=document.createElement('div');title.textContent='CLOUD PAUSED // COPIES PRESERVED';
- const desc=document.createElement('div');desc.textContent='Conflicting progress needs review. No overwrite.';
- desc.style.cssText='opacity:.85;margin:3px 0 6px;';
- const save=document.createElement('button');save.type='button';save.textContent='SAVE BOTH';
- save.style.cssText='color:#8ef1bc;background:#092318;border:1px solid #296a4a;border-radius:4px;padding:4px 8px;font:inherit;';
- save.addEventListener('click',()=>{try{exportCloudConflict();cloudNotice('RECOVERY DOWNLOAD REQUESTED');}catch{cloudNotice('EXPORT FAILED — COPIES PRESERVED');}});
- const retry=document.createElement('button');retry.type='button';retry.textContent='RECHECK';
- retry.style.cssText='background:transparent;color:#8ef1bc;border:0;margin-left:6px;font:inherit;';
- retry.addEventListener('click',()=>{retry.disabled=true;void resumeCloudSyncSafely().then(r=>{if(r.conflict)cloudNotice('STILL CONFLICTED — COPIES PRESERVED');else if(r.retrying)cloudNotice('WAITING FOR NETWORK');else cloudNotice('CLOUD RECHECKED');}).catch(()=>cloudNotice('RECHECK BLOCKED — COPIES SAFE')).finally(()=>{retry.disabled=false;});});
- const hide=document.createElement('button');hide.type='button';hide.textContent='HIDE';
- hide.style.cssText='background:transparent;color:#e8bd6e;border:0;margin-left:10px;font:inherit;';
+ const box=document.createElement('div');box.id='ghosted-cloud-conflict';
+ box.setAttribute('role','alert');
+ box.style.cssText='position:fixed;z-index:10095;top:8px;right:8px;max-width:min(310px,calc(100vw - 16px));background:#07150f;color:#e8bd6e;border:1px solid #a77a35;border-radius:6px;padding:9px 10px;font:11px/1.5 monospace;box-shadow:0 3px 16px #000b;';
+ const title=document.createElement('div');title.textContent='SYNC PAUSED // ACTION REQUIRED';
+ const desc=document.createElement('div');desc.textContent='Android and website differ. Your data is preserved. SAVE BOTH creates a backup; it does not synchronize.';
+ desc.style.cssText='opacity:.9;margin:3px 0 8px;';
+ const resolve=document.createElement('button');resolve.type='button';resolve.textContent='[ REVIEW & RESOLVE ]';
+ resolve.style.cssText='color:#92f7bd;background:#092318;border:1px solid #296a4a;border-radius:4px;padding:5px 8px;font:inherit;';
+ resolve.addEventListener('click',()=>{flawlessPanel();});
+ const save=document.createElement('button');save.type='button';save.textContent='[ EXPORT ]';
+ save.style.cssText='background:transparent;color:#8ef1bc;border:0;margin-left:5px;font:inherit;';
+ save.addEventListener('click',()=>{try{exportCloudConflict();cloudNotice('BACKUP REQUESTED // VERIFY DOWNLOAD; CONFLICT STILL PAUSED');}catch(error){cloudNotice('EXPORT FAILED // '+String(error).slice(0,90));}});
+ const hide=document.createElement('button');hide.type='button';hide.textContent='[ HIDE ]';
+ hide.style.cssText='background:transparent;color:#e8bd6e;border:0;margin-left:5px;font:inherit;';
  hide.addEventListener('click',()=>box.remove());
- box.append(title,desc,save,retry,hide);document.body.append(box);
+ box.append(title,desc,resolve,save,hide);document.body.append(box);
 }
 async function resumeCloudSyncSafely(){
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)){
+  cloudSync.enabled=false;cloudSync.mode='conflict-protected';
+  cloudConflictBanner();
+  return {conflict:true,needsDecision:true,reason:'Protected conflict needs review; export both copies, then choose in Sync Control Center'};
+ }
  if(cloudSync.busy)return {busy:true};
  if(!cloudState.configured)throw Error('Cloud not configured');
  if(navigator.onLine)await requireCloudSession();
@@ -635,6 +657,68 @@ function cloudNeedsAttentionBanner(){
  dismiss.style.cssText='background:transparent;color:#eac778;border:0;margin-left:5px;font:11px monospace;';
  dismiss.addEventListener('click',()=>box.remove());
  box.append(title,desc,open,dismiss);document.body.append(box);
+}
+
+
+function cloudConflictPreview(){
+ const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+ if(!raw)return null;
+ const saved=JSON.parse(raw);
+ const android=validateCloudRecoveryProfile(JSON.parse(localStorage.getItem(CLOUD_STORAGE_KEY)||'null'));
+ const website=validateCloudRecoveryProfile(saved.remote);
+ const count=p=>Object.values(p.days||{}).reduce((n,ids)=>n+(Array.isArray(ids)?ids.length:0),0);
+ const earned=(p,k)=>Object.values(p.rewardLedger||{}).reduce((n,row)=>n+(Number(row?.[k])||0),0)+(Number(p.historicalCareerSeed?.[k])||0);
+ const list=p=>new Set(Object.entries(p.days||{}).flatMap(([day,ids])=>Array.isArray(ids)?ids.map(id=>day+' // PROTOCOL '+id):[]));
+ const a=list(android),b=list(website);
+ const onlyA=[...a].filter(v=>!b.has(v)),onlyB=[...b].filter(v=>!a.has(v));
+ const differentDays=[...new Set([...Object.keys(android.days||{}),...Object.keys(website.days||{})])]
+  .filter(day=>!cloudEqual(android.days?.[day],website.days?.[day])).sort().reverse();
+ return {
+  revision:saved.revision,createdAt:saved.createdAt,
+  sourceLocalChanged:!cloudEqual(android,saved.local),
+  baselineTrusted:!!cloudBase(),
+  cloudMayHaveAdvanced:!!saved.cloudMayHaveAdvanced,
+  reasons:(saved.details||[]).slice(0,6).map(String),
+  android:{completions:count(android),xp:earned(android,'xp'),coins:earned(android,'coins')},
+  website:{completions:count(website),xp:earned(website,'xp'),coins:earned(website,'coins')},
+  onlyAndroid:onlyA.slice(-12),onlyWebsite:onlyB.slice(-12),
+  differentDateCount:differentDays.length,
+  firstDifferentDates:differentDays.slice(0,8),
+  note:'XP and coins are total earned, not available balances. Purchases and rewards still require validation.'
+ };
+}
+// Safe rebase of the comparison. Revisions of previous conflict copies remain
+// archived locally and in the exported bundle; neither actual profile is changed.
+async function refreshProtectedConflict(){
+ if(!v8BackupVerified)throw Error('First SAVE BOTH COPIES and verify the download in Downloads');
+ if(cloudSync.busy)throw Error('Finish the current cloud request before refreshing');
+ const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+ if(!raw)throw Error('No protected conflict');
+ const original=JSON.parse(raw);
+ const currentRaw=localStorage.getItem(CLOUD_STORAGE_KEY);
+ const current=validateCloudRecoveryProfile(JSON.parse(currentRaw||'null'));
+ const latest=await cloudReadSnapshot();
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)!==raw || localStorage.getItem(CLOUD_STORAGE_KEY)!==currentRaw)
+  throw Error('Local copies changed during refresh; nothing modified');
+ if(cloudEqual(original.local,current) && Number(original.revision)===Number(latest.revision)
+   &&cloudEqual(original.remote,latest.payload))
+  return {note:'Your protected comparison is already current. Review the differences and choose SAFE MERGE or a verified copy.'};
+ const history=Array.isArray(original.previousVersions)?original.previousVersions:[];
+ if(history.length>=6)throw Error('Recovery history is full. Export backups and request careful manual recovery.');
+ const prior={createdAt:original.createdAt,revision:original.revision,
+   local:original.local,remote:original.remote,details:original.details};
+ const next={...original,format:'GHOSTED_V8_1_PROTECTED_CONFLICT',
+  createdAt:new Date().toISOString(),revision:Number(latest.revision),
+  local:current,remote:validateCloudRecoveryProfile(latest.payload),
+  details:['Operator refreshed comparison after safely exporting earlier copies'],
+  previousVersions:[...history,prior]};
+ const data=JSON.stringify(next);
+ localStorage.setItem(CLOUD_SYNC_CONFLICT,data);
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)!==data)throw Error('Refreshed comparison not persisted; operation not confirmed');
+ v8BackupVerified=false;
+ cloudSync.mode='conflict-protected';
+ cloudNotice('COMPARISON UPDATED // EXPORT BOTH COPIES AGAIN');
+ return {refreshPanel:true,note:'Updated comparison includes current Android and newest cloud. The prior versions are archived. Export the refreshed bundle again before resolving.'};
 }
 
 let v8BackupVerified=false;
@@ -778,7 +862,21 @@ function flawlessPanel(){
    return {note:'Verify public journal export in Downloads'};
   },
   exportConflict:()=>exportCloudConflict(),
+  recoveryText:()=>{
+   const raw=localStorage.getItem(CLOUD_SYNC_CONFLICT);
+   if(!raw)throw Error('No protected conflict to copy');
+   const recovered={
+    format:'GHOSTED_V8_1_MANUAL_RECOVERY_COPY',
+    exportedAt:new Date().toISOString(),
+    conflict:JSON.parse(raw),
+    currentAndroid:validateCloudRecoveryProfile(JSON.parse(localStorage.getItem(CLOUD_STORAGE_KEY)||'null'))
+   };
+   return JSON.stringify(recovered,null,2);
+  },
   setBackupVerified:checked=>{v8BackupVerified=!!checked;},
+  preview:cloudConflictPreview,
+  refreshConflict:refreshProtectedConflict,
+  reopen:flawlessPanel,
   resolve:resolveFlawlessConflict
  });
 }
@@ -793,6 +891,14 @@ function stopCloudSync(reason = 'disabled') {
 }
 
 async function syncCycle(){
+ // A saved conflict is a hard safety stop, including after an app restart.
+ // Merely pressing RECHECK or enabling a poll must never bypass operator review.
+ if(localStorage.getItem(CLOUD_SYNC_CONFLICT)){
+  cloudSync.enabled=false;cloudSync.mode='conflict-protected';
+  if(cloudSyncTimer)clearInterval(cloudSyncTimer);cloudSyncTimer=null;
+  cloudConflictBanner();
+  return {conflict:true,needsDecision:true};
+ }
  if(!cloudSync.enabled||cloudSync.busy||!navigator.onLine)return {skipped:true};
  if(cloudSync.nextRetryAt>Date.now())return {retrying:true,nextRetryAt:new Date(cloudSync.nextRetryAt).toISOString()};
  cloudSync.busy=true;

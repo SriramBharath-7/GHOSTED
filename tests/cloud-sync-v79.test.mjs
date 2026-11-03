@@ -85,3 +85,43 @@ test('same-looking purchases from two offline devices still need operator review
  assert.equal(result.ok,false);
  assert.ok(result.conflicts.some(x=>x.includes('concurrent-spending')));
 });
+
+test('combines an independently earned and verified Perfect Day with another completion without double credit',()=>{
+ const l=changed(p=>{
+  add(p,'2026-11-01',2,20,8);
+  p.rewardLedger['2026-11-01'].bonus=true;
+  p.rewardLedger['2026-11-01'].bonusScope=[1,2];
+  p.rewardLedger['2026-11-01'].xp+=50;p.rewardLedger['2026-11-01'].coins+=20;
+ });
+ const r=changed(p=>add(p,'2026-11-01',3,30,10));
+ const result=cloudMerge(base,l,r);
+ assert.equal(result.ok,true,result.conflicts.join(', '));
+ assert.deepEqual(result.profile.days['2026-11-01'],[1,2,3]);
+ assert.equal(result.profile.rewardLedger['2026-11-01'].xp,115);
+ assert.equal(result.profile.rewardLedger['2026-11-01'].coins,43);
+ assert.equal(result.profile.rewardLedger['2026-11-01'].bonus,true);
+ assert.deepEqual(result.profile.rewardLedger['2026-11-01'].bonusScope,[1,2]);
+});
+test('preserves previously credited Perfect Day during separate optional completions',()=>{
+ const b=copy(base);
+ b.rewardLedger['2026-11-01'].bonus=true;b.rewardLedger['2026-11-01'].bonusScope=[1];
+ b.rewardLedger['2026-11-01'].xp+=50;b.rewardLedger['2026-11-01'].coins+=20;
+ const l=copy(b),r=copy(b);add(l,'2026-11-01',2,20,8);add(r,'2026-11-01',3,30,10);
+ const result=cloudMerge(b,l,r);
+ assert.equal(result.ok,true,result.conflicts.join(', '));
+ assert.equal(result.profile.rewardLedger['2026-11-01'].xp,115);
+ assert.equal(result.profile.rewardLedger['2026-11-01'].coins,43);
+});
+test('different frozen Perfect Day scopes still require review',()=>{
+ const l=changed(p=>{
+  add(p,'2026-11-01',2,20,8);p.rewardLedger['2026-11-01'].bonus=true;
+  p.rewardLedger['2026-11-01'].bonusScope=[1,2];
+  p.rewardLedger['2026-11-01'].xp+=50;p.rewardLedger['2026-11-01'].coins+=20;
+ });
+ const r=changed(p=>{
+  add(p,'2026-11-01',3,30,10);p.rewardLedger['2026-11-01'].bonus=true;
+  p.rewardLedger['2026-11-01'].bonusScope=[1,3];
+  p.rewardLedger['2026-11-01'].xp+=50;p.rewardLedger['2026-11-01'].coins+=20;
+ });
+ assert.equal(cloudMerge(base,l,r).ok,false);
+});
